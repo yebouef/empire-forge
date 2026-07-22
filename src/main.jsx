@@ -437,7 +437,7 @@ function loadStored() {
   } catch { return null; }
 }
 
-function Header({ game, setGame, mode, setMode, undo, redo, canUndo, canRedo, fileInput, importFile, autosaved, lang, setLang }) {
+function Header({ game, setGame, mode, setMode, undo, redo, clearCurrent, canClear, canUndo, canRedo, fileInput, importFile, autosaved, lang, setLang }) {
   const text = UI[lang];
   return <>
     <header className="topbar">
@@ -452,6 +452,7 @@ function Header({ game, setGame, mode, setMode, undo, redo, canUndo, canRedo, fi
         <button onClick={() => fileInput.current.click()}><FileUp size={17}/> {text.import}</button>
         <button disabled={!canUndo} onClick={undo}><Undo2 size={17}/> {text.undo}</button>
         <button disabled={!canRedo} onClick={redo}><Redo2 size={17}/> {text.redo}</button>
+        <button className="header-clear" disabled={!canClear} onClick={clearCurrent}><Trash2 size={17}/> {text.clear}</button>
       </div>
     </header>
     <div className="modebar">
@@ -506,18 +507,18 @@ function ToolNav({ tool, setTool, lang }) {
   return <nav className="suite-tabs">{Object.entries(labels).map(([key, label]) => <button key={key} className={tool === key ? 'active' : ''} onClick={() => setTool(key)}>{label}</button>)}</nav>;
 }
 
-function StrategyTools({ data, game, lang, tool, setTool, generator, setGenerator, generatedPreview, compareIds, setCompareIds, optimizedSelected, selected, wallSettings, setWallSettings, wallSelected, applyStrategy, commitSelected }) {
+function StrategyTools({ data, game, lang, tool, setTool, showNav = true, generator, setGenerator, generatedPreview, compareIds, setCompareIds, optimizedSelected, selected, wallSettings, setWallSettings, wallSelected, applyStrategy, commitSelected }) {
   const bi = (en, fr) => lang === 'fr' ? fr : en;
   const comparePlans = compareIds.map(id => { const preset = PRESETS.find(item => item.id === id) || PRESETS[0]; const plan = hydratePreset(data, preset, game); return { preset: presetCopy(preset, lang), plan, summary: selectionSummary(data, plan) }; });
   const modes = [['random', bi('Random Map', 'Carte aléatoire')], ['deathmatch', 'Deathmatch'], ['islands', bi('Islands', 'Îles')], ['team', bi('Team Game', 'Partie en équipe')], ['duel', '1v1'], ['defense', bi('Long Defense', 'Défense longue')]];
   const focuses = [['economy', bi('Economy', 'Économie')], ['offense', bi('Offense', 'Attaque')], ['defense', bi('Defense', 'Défense')], ['construction', 'Construction'], ['siege', bi('Siege', 'Siège')], ['religion', 'Religion']];
   const toolPlan = tool === 'generator' ? generatedPreview : wallSelected;
-  return <section className="strategy-tools"><ToolNav tool={tool} setTool={setTool} lang={lang}/>
+  return <>{showNav ? <ToolNav tool={tool} setTool={setTool} lang={lang}/> : null}
     {tool === 'generator' && <div className="tool-grid"><aside className="tool-controls"><h2>{bi('Custom Strategy Generator', 'Générateur de stratégie')}</h2><ControlChoices title={bi('Game mode', 'Mode de jeu')} options={modes} value={generator.gameMode} onChange={value => setGenerator(current => ({ ...current, gameMode: value }))}/><ControlChoices title={bi('Phase', 'Phase')} options={[["early", bi('Early', 'Début')], ["mid", bi('Mid', 'Milieu')], ["late", bi('Late', 'Fin')]]} value={generator.phase} onChange={value => setGenerator(current => ({ ...current, phase: value }))}/><ControlChoices title={bi('Primary focus', 'Priorité')} options={focuses} value={generator.focus} onChange={value => setGenerator(current => ({ ...current, focus: value }))}/><RangeControl label={bi('Economy ↔ Military', 'Économie ↔ Militaire')} value={generator.balance} onChange={value => setGenerator(current => ({ ...current, balance: value }))}/><RangeControl label={bi('Early ↔ Late', 'Début ↔ Fin')} value={generator.timeline} onChange={value => setGenerator(current => ({ ...current, timeline: value }))}/><RangeControl label={bi('Defense level', 'Niveau de défense')} value={generator.defense} onChange={value => setGenerator(current => ({ ...current, defense: value }))}/></aside><section className="tool-plan"><div className="advisor-heading"><Sparkles size={25}/><div><h2>{bi('Generated Civilization', 'Civilisation générée')}</h2><p>{bi('Built from your mode, phase, focus, and sliders.', 'Créée selon votre mode, phase, priorité et vos curseurs.')}</p></div></div><CompactPlan data={data} selected={toolPlan} lang={lang}/><button className="apply-preset" onClick={() => applyStrategy(toolPlan, bi('Custom Strategy', 'Stratégie personnalisée'))}>{bi('Apply to builder', 'Appliquer au créateur')}</button></section><aside className="advisor-inspector"><h2>{bi('Analysis', 'Analyse')}</h2><MiniAnalysis data={data} selected={toolPlan} game={game} lang={lang}/></aside></div>}
     {tool === 'compare' && <div className="comparison-view"><div className="compare-header"><div><h2>{bi('Compare Strategies', 'Comparer les stratégies')}</h2><p>{bi('Compare costs, breadth, and dominant investment.', 'Comparez les coûts, la diversité et l’investissement dominant.')}</p></div>{compareIds.map((id, index) => <select key={index} value={id} onChange={event => setCompareIds(current => current.map((value, i) => i === index ? event.target.value : value))}>{PRESETS.map(item => <option key={item.id} value={item.id}>{presetCopy(item, lang).name}</option>)}</select>)}</div><div className="compare-columns">{comparePlans.map(({ preset, plan, summary }) => <article className="compare-card" key={preset.id}><h2>{preset.name}</h2><p>{preset.summary}</p><div className="compare-metrics"><b>{summary.total}<small>/100</small></b><span>{summary.entries} {bi('entries', 'bonus')}<br/>{summary.categories} {bi('categories', 'catégories')}</span></div><dl><div><dt>{bi('Dominant investment', 'Investissement principal')}</dt><dd>{categoryName(summary.dominant, lang)}</dd></div><div><dt>{bi('Remaining points', 'Points restants')}</dt><dd>{100 - summary.total}</dd></div></dl><CompactPlan data={data} selected={plan} lang={lang}/><button className="apply-preset" onClick={() => applyStrategy(plan, preset.name)}>{bi('Apply preset', 'Appliquer')}</button></article>)}</div></div>}
     {tool === 'optimize' && <div className="optimize-view"><header><h2>{bi('Optimize My Civilization', 'Optimiser ma civilisation')}</h2><p>{bi('Fills unused points with the lowest marginal-cost valid bonuses. Undo restores your original build.', 'Utilise les points restants avec les bonus valides au coût marginal le plus faible. Annuler restaure votre création.')}</p></header><div className="compare-columns"><article className="compare-card"><h2>{bi('Current build', 'Création actuelle')}</h2><CompactPlan data={data} selected={selected} lang={lang}/></article><article className="compare-card optimized"><h2>{bi('Optimized build', 'Création optimisée')}</h2><CompactPlan data={data} selected={optimizedSelected} lang={lang}/><button className="apply-preset" disabled={!allSelected(selected).length} onClick={() => commitSelected(optimizedSelected)}>{bi('Apply optimization', 'Appliquer l’optimisation')}</button></article></div></div>}
     {tool === 'walls' && <div className="tool-grid wall-lab"><aside className="tool-controls"><h2>{bi('Wall Defense Calculator', 'Calculateur de défense')}</h2>{[['hp', '50% Hit Points', '50% Points de vie'], ['cost', '15% Cost Reduction', '15% Réduction du coût'], ['build', '30% Build Time Decrease', '30% Construction accélérée'], ['attack', '20% Attack', '20% Attaque'], ['range', '20% Range', '20% Portée']].map(([key, en, fr]) => <RangeControl key={key} label={bi(en, fr)} value={wallSettings[key]} min={0} max={5} onChange={value => setWallSettings(current => ({ ...current, [key]: value }))}/>)}</aside><section className="tool-plan"><div className="advisor-heading"><ShieldCheck size={25}/><div><h2>{bi('Fortification Plan', 'Plan de fortification')}</h2><p>{bi('Exact point cost with category surcharges in displayed order.', 'Coût exact avec les suppléments de catégorie dans l’ordre affiché.')}</p></div></div><div className="wall-stats"><div><b>{1 + wallSettings.hp * .5}×</b><span>{bi('listed structure health', 'points de vie indiqués')}</span></div><div><b>{wallSettings.cost * 15}%</b><span>{bi('listed cost reduction', 'réduction indiquée')}</span></div><div><b>{totalCost(data, wallSelected)}</b><span>{bi('civilization points', 'points de civilisation')}</span></div></div><CompactPlan data={data} selected={wallSelected} lang={lang}/><button className="apply-preset" disabled={totalCost(data, wallSelected) > CAP || !allSelected(wallSelected).length} onClick={() => applyStrategy(wallSelected, bi('Custom Fortification', 'Fortification personnalisée'))}>{bi('Apply fortification', 'Appliquer la fortification')}</button></section><aside className="advisor-inspector"><h2>{bi('Analysis', 'Analyse')}</h2><MiniAnalysis data={data} selected={wallSelected} game={game} lang={lang}/></aside></div>}
-  </section>;
+  </>;
 }
 
 function App() {
@@ -643,6 +644,14 @@ function App() {
     return next;
   });
 
+  const clearCurrent = () => {
+    if (!allSelected(selected).length) return;
+    commitSelected({});
+    setName('');
+    setDraftName('');
+    setMessage(bi('Current civilization cleared. Use Undo to restore it.', 'Civilisation actuelle effacée. Utilisez Annuler pour la restaurer.'));
+  };
+
   const download = () => {
     if (!name.trim()) return setMessage('Enter a civilization name before downloading.');
     if (name.length > 31 || [...name].some(c => c.charCodeAt(0) > 255)) return setMessage('Use 1–31 basic Latin characters for the civilization name.');
@@ -718,9 +727,8 @@ function App() {
 
   const applyStrategy = (plan, label) => { commitSelected(plan); setName(label); setMode('builder'); setMessage(bi(`${label} applied.`, `${label} appliqué.`)); };
 
-  const advisor = advisorTool === 'presets' ? <>
+  const advisor = <section className="strategy-tools"><ToolNav tool={advisorTool} setTool={setAdvisorTool} lang={lang}/>{advisorTool === 'presets' ? <div className="advisor-workspace">
     <aside className="advisor-presets">
-      <ToolNav tool={advisorTool} setTool={setAdvisorTool} lang={lang}/>
       <label className="search"><Search size={15}/><input value={presetQuery} onChange={event => setPresetQuery(event.target.value)} placeholder={lang === 'fr' ? 'Rechercher…' : 'Search…'}/></label>
       <select className="preset-filter" value={presetFilter} onChange={event => setPresetFilter(event.target.value)}><option value="all">{lang === 'fr' ? 'Toutes les stratégies' : 'All strategies'}</option><option value="opening">{lang === 'fr' ? 'Début de partie' : 'Opening'}</option><option value="economy">{lang === 'fr' ? 'Économie' : 'Economy'}</option><option value="offense">{lang === 'fr' ? 'Attaque' : 'Offense'}</option><option value="defense">{lang === 'fr' ? 'Défense' : 'Defense'}</option><option value="construction">Construction</option><option value="siege">{lang === 'fr' ? 'Siège' : 'Siege'}</option><option value="religion">Religion</option></select>
       <div className="side-label">{text.strategyPresets}</div>
@@ -751,10 +759,10 @@ function App() {
       <button className="clear advisor-clear" disabled={!allSelected(selected).length} onClick={() => { commitSelected({}); setName(''); setDraftName(''); setMessage(lang === 'fr' ? 'Civilisation actuelle effacée. Les brouillons enregistrés sont conservés.' : 'Current civilization cleared. Saved drafts were kept.'); }}><Trash2 size={15}/> {text.clear}</button>
       {message && <div className="message">{message}</div>}
     </aside>
-  </> : <StrategyTools {...{ data, game, lang, tool: advisorTool, setTool: setAdvisorTool, generator, setGenerator, generatedPreview, compareIds, setCompareIds, optimizedSelected, selected, wallSettings, setWallSettings, wallSelected, applyStrategy, commitSelected }}/>;
+  </div> : <StrategyTools {...{ data, game, lang, tool: advisorTool, setTool: setAdvisorTool, showNav: false, generator, setGenerator, generatedPreview, compareIds, setCompareIds, optimizedSelected, selected, wallSettings, setWallSettings, wallSelected, applyStrategy, commitSelected }}/>}</section>;
 
   return <main className={`app-shell ${mode === 'advisor' ? 'advisor-shell' : ''}`}>
-    <Header {...{ game, setGame, mode, setMode, undo, redo, canUndo: !!undoStack.length, canRedo: !!redoStack.length, fileInput, importFile, autosaved, lang, setLang }}/>
+    <Header {...{ game, setGame, mode, setMode, undo, redo, clearCurrent, canClear: !!allSelected(selected).length, canUndo: !!undoStack.length, canRedo: !!redoStack.length, fileInput, importFile, autosaved, lang, setLang }}/>
     {mode === 'builder' ? builder : advisor}
   </main>;
 }
