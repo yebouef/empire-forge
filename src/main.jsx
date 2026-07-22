@@ -58,6 +58,7 @@ function parseCiv(buffer, data) {
 
 function App() {
   const [data, setData] = useState(null);
+  const [loadError, setLoadError] = useState('');
   const [game, setGame] = useState('aoc');
   const [name, setName] = useState('My Civilization');
   const [selected, setSelected] = useState({});
@@ -66,7 +67,15 @@ function App() {
   const [message, setMessage] = useState('');
   const fileInput = useRef(null);
 
-  useEffect(() => { fetch('/civ_info.json').then(r => r.json()).then(setData); }, []);
+  useEffect(() => {
+    fetch(`${import.meta.env.BASE_URL}civ_info.json`)
+      .then(response => {
+        if (!response.ok) throw new Error(`Could not load civilization records (${response.status}).`);
+        return response.json();
+      })
+      .then(setData)
+      .catch(error => setLoadError(error.message));
+  }, []);
   useEffect(() => {
     if (!data || data[game].includes(activeCategory)) return;
     setActiveCategory(data[game][0]);
@@ -79,6 +88,7 @@ function App() {
     return data[game].filter(category => !q || category.toLowerCase().includes(q) || data.categories[category].bonuses.some(b => b.name.toLowerCase().includes(q)));
   }, [data, game, query]);
 
+  if (loadError) return <div className="loading">{loadError}</div>;
   if (!data) return <div className="loading">Loading civilization records…</div>;
 
   const category = data.categories[activeCategory];
