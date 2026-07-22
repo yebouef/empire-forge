@@ -1,18 +1,169 @@
 import React, { useEffect, useMemo, useRef, useState } from 'react';
 import { createRoot } from 'react-dom/client';
-import { ChevronDown, Download, FileUp, Minus, Plus, RotateCcw, Search, ShieldCheck, Trash2 } from 'lucide-react';
+import {
+  AlertTriangle, CheckCircle2, Download, FileUp, Gauge, Lightbulb,
+  Minus, Plus, Redo2, RotateCcw, Save, Search, ShieldCheck,
+  Sparkles, Trash2, Undo2,
+} from 'lucide-react';
 import './styles.css';
 
 const CAP = 100;
-
+const STORAGE_KEY = 'empire-forge:v2';
 const sum = values => values.reduce((a, b) => a + b, 0);
+
+const PRESETS = [
+  {
+    id: 'economy', name: 'Economy Boom', summary: 'Outpace opponents with sustained resource growth.',
+    reason: 'Front-loads broadly useful gathering bonuses while keeping enough points for population and worker durability.',
+    entries: [
+      ['Civ - Economy', '20% Farming', 2], ['Civ - Economy', '15% Wood Cutting', 1],
+      ['Civ - General', '15% Population Cap', 1], ['Citizens and Fishing Boats', '30% Hit Points', 2],
+    ],
+  },
+  {
+    id: 'infantry', name: 'Infantry Rush', summary: 'Win early fights with fast, durable foot armies.',
+    reason: 'Attack and build-time bonuses improve immediate pressure; speed helps reinforce and disengage.',
+    entries: [
+      ['Infantry - Sword', '25% Attack', 3], ['Infantry - Sword', '30% Build Time Decrease', 1],
+      ['Infantry - Sword', '20% Speed', 1], ['Infantry - Spear (Melee)', '25% Attack', 2],
+      ['Infantry - Ranged', '20% Attack', 1],
+    ],
+  },
+  {
+    id: 'archer', name: 'Archer Command', summary: 'Control the battlefield through ranged pressure.',
+    reason: 'Range compounds positioning advantages, while attack and speed improve focus fire and kiting.',
+    entries: [
+      ['Archers - Foot', '20% Range', 2], ['Archers - Foot', '20% Attack', 2],
+      ['Archers - Foot', '20% Speed', 1], ['Archers - Foot', '25% Hit Points', 1],
+    ],
+  },
+  {
+    id: 'tanks', name: 'Tank Warfare', summary: 'Crush opponents with armored late-game power.',
+    reason: 'Balances attack, range, armor, and production rather than overpaying for one extreme stack.',
+    entries: [
+      ['Tanks', '20% Attack', 2], ['Tanks', '20% Range', 2], ['Tanks', '10% Armor', 1],
+      ['Tanks', '30% Build Time Decrease', 1],
+    ],
+  },
+  {
+    id: 'naval', name: 'Naval Supremacy', summary: 'Dominate seas with a balanced fleet.',
+    reason: 'Spreads investment across capital ships and escorts so the fleet has both damage and coverage.',
+    entries: [
+      ['Ships - Battleships and Carriers', '20% Attack', 2], ['Ships - Battleships and Carriers', '20% Range', 2],
+      ['Ships - Frigates and Cruisers', '20% Attack', 2], ['Ships - Frigates and Cruisers', '20% Speed', 1],
+      ['Ships - Galleys, Transports and Subs', '25% Hit Points', 1],
+    ],
+  },
+  {
+    id: 'air', name: 'Air Power', summary: 'Strike quickly with fighters, bombers, and helicopters.',
+    reason: 'Improves multiple aircraft roles so one counter does not invalidate the entire investment.',
+    entries: [
+      ['Aircraft - Fighters', '20% Attack', 2], ['Aircraft - Fighters', '20% Speed', 1],
+      ['Aircraft - Bombers', '20% Area Damage', 2], ['Aircraft - Bombers', '20% Attack', 1],
+      ['Aircraft - Helicopters', '20% Attack', 2],
+    ],
+  },
+  {
+    id: 'cyber', name: 'Cyber Future', summary: 'Build a specialized Nano-age combat force.',
+    reason: 'Combat Cyber bonuses carry the damage plan while Ultra durability protects expensive units.',
+    entries: [
+      ['Cybers - Combat', '20% Attack', 3], ['Cybers - Combat', '20% Range', 2],
+      ['Cybers - Ultra', '25% Hit Points', 2], ['Cybers - Ultra', '20% Armor', 1],
+    ],
+  },
+];
+
+const FR_CATEGORIES = {
+  'Special Powers': 'Pouvoirs spéciaux', 'Aircraft - Bombers': 'Aviation – Bombardiers',
+  'Aircraft - Fighters': 'Aviation – Chasseurs', 'Aircraft - Helicopters': 'Aviation – Hélicoptères',
+  'Archers - Foot': 'Archers à pied', 'Cavalry - Ranged': 'Cavalerie à distance',
+  'Cavalry - Spear (Melee)': 'Cavalerie – Lance', 'Cavalry - Sword': 'Cavalerie – Épée',
+  'Citizens and Fishing Boats': 'Citoyens et bateaux de pêche',
+  'Civ - Buildings, Walls and Towers': 'Civ – Bâtiments, murs et tours', 'Civ - Economy': 'Civ – Économie',
+  'Civ - General': 'Civ – Général', 'Cybers - Combat': 'Cybers – Combat', 'Cybers - Ultra': 'Cybers – Ultra',
+  'Field Cannon and Anti-Tank Guns': 'Canons de campagne et antichars', 'Infantry - Ranged': 'Infanterie à distance',
+  'Infantry - Spear (Melee)': 'Infanterie – Lance', 'Infantry - Sword': 'Infanterie – Épée',
+  'Religion - Priests': 'Religion – Prêtres', 'Religion - Prophets': 'Religion – Prophètes',
+  'Ships - Battleships and Carriers': 'Navires – Cuirassés et porte-avions',
+  'Ships - Frigates and Cruisers': 'Navires – Frégates et croiseurs',
+  'Ships - Galleys, Transports and Subs': 'Navires – Galères, transports et sous-marins',
+  'Siege Weapons and Mobile AA': 'Armes de siège et DCA mobile', 'Space Fighters': 'Chasseurs spatiaux',
+  Spaceships: 'Vaisseaux spatiaux', Tanks: 'Chars',
+};
+
+const UI = {
+  en: {
+    editor: 'Civilization Editor', import: 'Import', undo: 'Undo', redo: 'Redo', builder: 'Builder', advisor: 'Advisor',
+    autosaved: 'Autosaved', saving: 'Saving…', search: 'Search bonuses…', categories: 'Categories', exactStacking: 'Exact stacking',
+    stackingHelp: 'Every selection in a category raises the next selection by that category’s surcharge.', categorySurcharge: 'Category surcharge',
+    priorSelection: 'per prior selection', bonus: 'Bonus', base: 'Base', copies: 'Copies', nextCopy: 'Next copy', civDetails: 'Civilization details',
+    civName: 'Civilization name', remaining: 'remaining', entries: 'bonus entries', selected: 'Selected bonuses', marginal: 'marginal costs',
+    empty: 'Choose bonuses or apply an Advisor preset.', valid: 'Valid civilization', over: 'Over budget', within: 'Within the 100-point limit.',
+    remove: 'Remove bonuses before export.', download: 'Download .civ', clear: 'Clear all selections', strategyPresets: 'Strategy presets',
+    bonusPlan: 'Bonus plan', points: 'points', why: 'Why this works', apply: 'Apply preset to builder', analysis: 'Advisor analysis',
+    efficiency: 'Efficiency analysis', smartValidation: 'Smart validation', recommendations: 'Recommendation notes', drafts: 'Named drafts',
+    draftName: 'Draft name', save: 'Save', loadDraft: 'Load a saved draft…', excellent: 'Excellent', good: 'Good', expensive: 'Expensive',
+    noAnalysis: 'Apply a preset or build a civilization to analyze it.', noRecommendation: 'Select a preset to see why each bonus earns its place.',
+  },
+  fr: {
+    editor: 'Éditeur de civilisation', import: 'Importer', undo: 'Annuler', redo: 'Rétablir', builder: 'Création', advisor: 'Conseiller',
+    autosaved: 'Sauvegardé', saving: 'Sauvegarde…', search: 'Rechercher des bonus…', categories: 'Catégories', exactStacking: 'Cumul exact',
+    stackingHelp: 'Chaque choix dans une catégorie augmente le coût du choix suivant selon le supplément de cette catégorie.', categorySurcharge: 'Supplément de catégorie',
+    priorSelection: 'par choix antérieur', bonus: 'Bonus', base: 'Base', copies: 'Copies', nextCopy: 'Prochaine copie', civDetails: 'Détails de la civilisation',
+    civName: 'Nom de la civilisation', remaining: 'restants', entries: 'entrées de bonus', selected: 'Bonus sélectionnés', marginal: 'coûts marginaux',
+    empty: 'Choisissez des bonus ou appliquez une stratégie du Conseiller.', valid: 'Civilisation valide', over: 'Budget dépassé', within: 'Dans la limite de 100 points.',
+    remove: 'Retirez des bonus avant l’exportation.', download: 'Télécharger .civ', clear: 'Effacer tous les choix', strategyPresets: 'Stratégies prédéfinies',
+    bonusPlan: 'Plan de bonus', points: 'points', why: 'Pourquoi cela fonctionne', apply: 'Appliquer au créateur', analysis: 'Analyse du conseiller',
+    efficiency: 'Analyse d’efficacité', smartValidation: 'Validation intelligente', recommendations: 'Notes de recommandation', drafts: 'Brouillons nommés',
+    draftName: 'Nom du brouillon', save: 'Sauvegarder', loadDraft: 'Charger un brouillon…', excellent: 'Excellent', good: 'Bon', expensive: 'Coûteux',
+    noAnalysis: 'Appliquez une stratégie ou créez une civilisation pour l’analyser.', noRecommendation: 'Sélectionnez une stratégie pour comprendre chaque bonus.',
+  },
+};
+
+const FR_PRESETS = {
+  economy: ['Essor économique', 'Dépassez vos adversaires grâce à une croissance durable.', 'Privilégie les ressources utiles tout en conservant des points pour la population et la résistance des citoyens.'],
+  infantry: ['Ruée d’infanterie', 'Remportez les premiers combats avec une armée rapide et robuste.', 'L’attaque et la production accélèrent la pression immédiate; la vitesse facilite les renforts.'],
+  archer: ['Commandement des archers', 'Contrôlez le champ de bataille à distance.', 'La portée améliore le positionnement; l’attaque et la vitesse renforcent le tir concentré.'],
+  tanks: ['Guerre blindée', 'Écrasez vos adversaires avec des chars puissants.', 'Équilibre attaque, portée, armure et production au lieu de surpayer un seul cumul.'],
+  naval: ['Suprématie navale', 'Dominez les mers avec une flotte équilibrée.', 'Répartit les points entre navires principaux et escorte pour combiner dégâts et couverture.'],
+  air: ['Puissance aérienne', 'Frappez rapidement avec chasseurs, bombardiers et hélicoptères.', 'Améliore plusieurs rôles aériens afin qu’un seul contre ne neutralise pas toute la stratégie.'],
+  cyber: ['Futur cybernétique', 'Déployez une force spécialisée de l’Âge Nano.', 'Les Cybers de combat fournissent les dégâts tandis que les Ultras protègent les unités coûteuses.'],
+};
+
+function categoryName(name, lang) { return lang === 'fr' ? FR_CATEGORIES[name] || name : name; }
+
+function bonusName(name, lang) {
+  if (lang !== 'fr') return name;
+  const replacements = [
+    ['Area Damage', 'Dégâts de zone'], ['Build Time Decrease', 'Réduction du temps de production'],
+    ['Conversion Resistance', 'Résistance à la conversion'], ['Mountain Combat Bonus', 'Bonus de combat en montagne'],
+    ['Population Cap', 'Limite de population'], ['Cost Reduction', 'Réduction du coût'], ['Rate of Fire', 'Cadence de tir'],
+    ['Flight Time', 'Autonomie de vol'], ['Hit Points', 'Points de vie'], ['Gold Mining', 'Extraction d’or'],
+    ['Iron Mining', 'Extraction de fer'], ['Stone Mining', 'Extraction de pierre'], ['Wood Cutting', 'Coupe du bois'],
+    ['Hunting and Foraging', 'Chasse et cueillette'], ['Farming', 'Agriculture'], ['Fishing', 'Pêche'],
+    ['Attack', 'Attaque'], ['Armor', 'Armure'], ['Range', 'Portée'], ['Speed', 'Vitesse'],
+  ];
+  return replacements.reduce((text, [from, to]) => text.replace(from, to), name);
+}
+
+function presetCopy(preset, lang) {
+  if (lang !== 'fr') return preset;
+  const [name, summary, reason] = FR_PRESETS[preset.id];
+  return { ...preset, name, summary, reason };
+}
 
 function categoryCost(category, selected) {
   return sum(selected.map((bonus, index) => bonus.costs + index * category.category_cost));
 }
 
-function allSelected(selected) {
-  return Object.values(selected).flat();
+function allSelected(selected) { return Object.values(selected).flat(); }
+
+function totalCost(data, selected) {
+  return sum(Object.entries(selected).map(([key, bonuses]) => categoryCost(data.categories[key], bonuses)));
+}
+
+function groupBonuses(bonuses) {
+  return [...new Map(bonuses.map(bonus => [bonus.hexcode, bonus])).values()];
 }
 
 function makeCivBlob(name, selected) {
@@ -56,37 +207,181 @@ function parseCiv(buffer, data) {
   return { name, selected, unknown };
 }
 
+function hydratePreset(data, preset, game) {
+  const selected = {};
+  for (const [categoryName, bonusName, copies] of preset.entries) {
+    if (!data[game].includes(categoryName)) continue;
+    const bonus = data.categories[categoryName].bonuses.find(item => item.name === bonusName);
+    if (bonus) selected[categoryName] = [...(selected[categoryName] || []), ...Array(copies).fill(bonus)];
+  }
+  return selected;
+}
+
+function efficiencyLabel(category, bonus, positions) {
+  const costs = positions.map(index => bonus.costs + index * category.category_cost);
+  const average = sum(costs) / costs.length;
+  const ratio = average / Math.max(1, bonus.costs);
+  if (ratio <= 1.6) return { key: 'excellent', tone: 'excellent' };
+  if (ratio <= 2.4) return { key: 'good', tone: 'good' };
+  return { key: 'expensive', tone: 'expensive' };
+}
+
+function buildValidation(data, selected, total, game, lang) {
+  const results = [];
+  const fr = lang === 'fr';
+  if (!allSelected(selected).length) results.push({ tone: 'warn', text: fr ? 'Aucun bonus sélectionné.' : 'No bonuses selected yet.' });
+  else results.push({ tone: 'ok', text: fr ? `${allSelected(selected).length} entrées de bonus valides.` : `${allSelected(selected).length} valid bonus entries selected.` });
+  results.push(total <= CAP
+    ? { tone: 'ok', text: fr ? `Budget respecté : ${CAP - total} points restants.` : `Total is within budget with ${CAP - total} points remaining.` }
+    : { tone: 'error', text: fr ? `La limite est dépassée de ${total - CAP} points.` : `Build exceeds the limit by ${total - CAP} points.` });
+  for (const [key, bonuses] of Object.entries(selected)) {
+    if (!data[game].includes(key)) results.push({ tone: 'error', text: fr ? `${categoryName(key, lang)} n’est pas disponible dans cette version.` : `${key} is unavailable in this game version.` });
+    const category = data.categories[key];
+    for (const bonus of groupBonuses(bonuses)) {
+      const copies = bonuses.filter(item => item.hexcode === bonus.hexcode).length;
+      if (copies >= 4) results.push({ tone: 'warn', text: fr ? `${bonusName(bonus.name, lang)} ×${copies} a un supplément marginal élevé.` : `${bonus.name} ×${copies} has a high marginal surcharge.` });
+      if (bonus.epochs !== '?' && bonus.epochs !== 'all') results.push({ tone: 'note', text: fr ? `${bonusName(bonus.name, lang)} s’applique aux époques ${bonus.epochs}.` : `${bonus.name} applies in epochs ${bonus.epochs}.` });
+    }
+    if (categoryCost(category, bonuses) >= 55) results.push({ tone: 'warn', text: fr ? `${categoryName(key, lang)} consomme plus de la moitié du budget.` : `${key} consumes over half of the entire budget.` });
+  }
+  return results.slice(0, 7);
+}
+
+function recommendationFor(category, bonus, lang) {
+  const name = bonus.name.toLowerCase();
+  if (lang === 'fr') {
+    if (name.includes('attack')) return `L’attaque renforce les dégâts principaux de ${categoryName(category, lang)}.`;
+    if (name.includes('range')) return 'La portée contrôle les engagements et réduit les dégâts subis.';
+    if (name.includes('build time')) return 'Une production plus rapide transforme les ressources en pression plus tôt.';
+    if (name.includes('cost reduction')) return 'La réduction du coût est surtout rentable dans les longues parties.';
+    if (name.includes('hit points') || name.includes('armor')) return 'La durabilité protège l’investissement et améliore la résistance.';
+    if (name.includes('speed')) return 'La vitesse facilite les renforts, le positionnement et la retraite.';
+    if (category === 'Civ - Economy') return 'L’accélération économique produit un avantage cumulatif.';
+    return `Ce bonus renforce la stratégie ${categoryName(category, lang)}.`;
+  }
+  if (name.includes('attack')) return `Attack supports the primary damage plan for ${category}.`;
+  if (name.includes('range')) return 'Range improves engagement control and reduces return damage.';
+  if (name.includes('build time')) return 'Faster production converts resources into pressure sooner.';
+  if (name.includes('cost reduction')) return 'Cost reduction pays off most in long, production-heavy games.';
+  if (name.includes('hit points') || name.includes('armor')) return 'Durability protects the investment and improves staying power.';
+  if (name.includes('speed')) return 'Speed improves reinforcement, positioning, and retreat options.';
+  if (category === 'Civ - Economy') return 'Economic acceleration compounds across the remainder of the match.';
+  return `This bonus reinforces the selected ${category} strategy.`;
+}
+
+function loadStored() {
+  try {
+    const saved = JSON.parse(localStorage.getItem(STORAGE_KEY));
+    return saved?.version === 2 ? saved : null;
+  } catch { return null; }
+}
+
+function Header({ game, setGame, mode, setMode, undo, redo, canUndo, canRedo, fileInput, importFile, autosaved, lang, setLang }) {
+  const text = UI[lang];
+  return <>
+    <header className="topbar">
+      <div className="brand"><div className="crest">EF</div><div><h1>Empire Forge</h1><span>{text.editor}</span></div></div>
+      <div className="game-switch" aria-label="Game version">
+        <button className={game === 'ee' ? 'active' : ''} onClick={() => setGame('ee')}>Empire Earth</button>
+        <button className={game === 'aoc' ? 'active' : ''} onClick={() => setGame('aoc')}>Art of Conquest</button>
+      </div>
+      <div className="actions">
+        <input ref={fileInput} type="file" accept=".civ" hidden onChange={importFile} />
+        <div className="language-switch"><button className={lang === 'en' ? 'active' : ''} onClick={() => setLang('en')}>EN</button><button className={lang === 'fr' ? 'active' : ''} onClick={() => setLang('fr')}>FR</button></div>
+        <button onClick={() => fileInput.current.click()}><FileUp size={17}/> {text.import}</button>
+        <button disabled={!canUndo} onClick={undo}><Undo2 size={17}/> {text.undo}</button>
+        <button disabled={!canRedo} onClick={redo}><Redo2 size={17}/> {text.redo}</button>
+      </div>
+    </header>
+    <div className="modebar">
+      <div><button className={mode === 'builder' ? 'active' : ''} onClick={() => setMode('builder')}>{text.builder}</button><button className={mode === 'advisor' ? 'active' : ''} onClick={() => setMode('advisor')}>{text.advisor}</button></div>
+      <span><CheckCircle2 size={14}/> {autosaved ? text.autosaved : text.saving}</span>
+    </div>
+  </>;
+}
+
+function BudgetRing({ total, entries, lang }) {
+  const text = UI[lang];
+  return <div className="budget"><div className="budget-ring" style={{ '--fill': `${Math.min(total, 100) * 3.6}deg` }}><div><strong>{total}</strong><span>/ 100</span></div></div><div><b>{CAP - total} {text.remaining}</b><span>{entries} {text.entries}</span></div></div>;
+}
+
 function App() {
+  const stored = useMemo(loadStored, []);
   const [data, setData] = useState(null);
   const [loadError, setLoadError] = useState('');
-  const [game, setGame] = useState('aoc');
-  const [name, setName] = useState('My Civilization');
-  const [selected, setSelected] = useState({});
+  const [game, setGame] = useState(stored?.game || 'aoc');
+  const [lang, setLang] = useState(stored?.lang || 'en');
+  const [mode, setMode] = useState('builder');
+  const [name, setName] = useState(stored?.name || 'My Civilization');
+  const [selected, setSelected] = useState(stored?.selected || {});
   const [activeCategory, setActiveCategory] = useState('Civ - Economy');
+  const [activePresetId, setActivePresetId] = useState(stored?.activePresetId || 'economy');
   const [query, setQuery] = useState('');
   const [message, setMessage] = useState('');
+  const [drafts, setDrafts] = useState(stored?.drafts || {});
+  const [draftName, setDraftName] = useState('');
+  const [undoStack, setUndoStack] = useState([]);
+  const [redoStack, setRedoStack] = useState([]);
+  const [autosaved, setAutosaved] = useState(true);
   const fileInput = useRef(null);
 
   useEffect(() => {
     fetch(`${import.meta.env.BASE_URL}civ_info.json`)
-      .then(response => {
-        if (!response.ok) throw new Error(`Could not load civilization records (${response.status}).`);
-        return response.json();
-      })
-      .then(setData)
-      .catch(error => setLoadError(error.message));
+      .then(response => { if (!response.ok) throw new Error(`Could not load civilization records (${response.status}).`); return response.json(); })
+      .then(setData).catch(error => setLoadError(error.message));
   }, []);
+
+  useEffect(() => {
+    setAutosaved(false);
+    const timer = setTimeout(() => {
+      localStorage.setItem(STORAGE_KEY, JSON.stringify({ version: 2, game, lang, name, selected, drafts, activePresetId }));
+      setAutosaved(true);
+    }, 250);
+    return () => clearTimeout(timer);
+  }, [game, lang, name, selected, drafts, activePresetId]);
+
   useEffect(() => {
     if (!data || data[game].includes(activeCategory)) return;
     setActiveCategory(data[game][0]);
   }, [game, data, activeCategory]);
 
-  const total = useMemo(() => !data ? 0 : sum(Object.entries(selected).map(([key, bonuses]) => categoryCost(data.categories[key], bonuses))), [data, selected]);
+  const commitSelected = updater => {
+    setSelected(current => {
+      const next = typeof updater === 'function' ? updater(current) : updater;
+      setUndoStack(stack => [...stack.slice(-29), current]);
+      setRedoStack([]);
+      return next;
+    });
+  };
+
+  const undo = () => {
+    if (!undoStack.length) return;
+    const previous = undoStack.at(-1);
+    setRedoStack(stack => [...stack, selected]);
+    setUndoStack(stack => stack.slice(0, -1));
+    setSelected(previous);
+  };
+
+  const redo = () => {
+    if (!redoStack.length) return;
+    const next = redoStack.at(-1);
+    setUndoStack(stack => [...stack, selected]);
+    setRedoStack(stack => stack.slice(0, -1));
+    setSelected(next);
+  };
+
+  const total = useMemo(() => data ? totalCost(data, selected) : 0, [data, selected]);
   const available = useMemo(() => {
     if (!data) return [];
     const q = query.trim().toLowerCase();
     return data[game].filter(category => !q || category.toLowerCase().includes(q) || data.categories[category].bonuses.some(b => b.name.toLowerCase().includes(q)));
   }, [data, game, query]);
+  const text = UI[lang];
+  const validation = useMemo(() => data ? buildValidation(data, selected, total, game, lang) : [], [data, selected, total, game, lang]);
+  const activePresetBase = PRESETS.find(preset => preset.id === activePresetId);
+  const activePreset = useMemo(() => presetCopy(activePresetBase, lang), [activePresetBase, lang]);
+  const presetSelected = useMemo(() => data ? hydratePreset(data, activePreset, game) : {}, [data, activePreset, game]);
+  const presetTotal = useMemo(() => data ? totalCost(data, presetSelected) : 0, [data, presetSelected]);
 
   if (loadError) return <div className="loading">{loadError}</div>;
   if (!data) return <div className="loading">Loading civilization records…</div>;
@@ -98,11 +393,11 @@ function App() {
   const add = bonus => {
     const nextCost = bonus.costs + nextSurcharge;
     if (total + nextCost > CAP) return setMessage(`Cannot add: this copy costs ${nextCost}, but only ${CAP - total} points remain.`);
-    setSelected(previous => ({ ...previous, [activeCategory]: [...(previous[activeCategory] || []), bonus] }));
+    commitSelected(previous => ({ ...previous, [activeCategory]: [...(previous[activeCategory] || []), bonus] }));
     setMessage('');
   };
 
-  const removeOne = bonus => setSelected(previous => {
+  const removeOne = bonus => commitSelected(previous => {
     const list = [...(previous[activeCategory] || [])];
     const index = list.findLastIndex(item => item.hexcode === bonus.hexcode);
     if (index >= 0) list.splice(index, 1);
@@ -116,8 +411,7 @@ function App() {
     if (name.length > 31 || [...name].some(c => c.charCodeAt(0) > 255)) return setMessage('Use 1–31 basic Latin characters for the civilization name.');
     const url = URL.createObjectURL(makeCivBlob(name, selected));
     const anchor = document.createElement('a');
-    anchor.href = url; anchor.download = `${name}.civ`; anchor.click();
-    URL.revokeObjectURL(url);
+    anchor.href = url; anchor.download = `${name}.civ`; anchor.click(); URL.revokeObjectURL(url);
     setMessage('Civilization downloaded.');
   };
 
@@ -127,67 +421,98 @@ function App() {
     try {
       const parsed = parseCiv(await file.arrayBuffer(), data);
       setName(parsed.name || file.name.replace(/\.civ$/i, ''));
-      setSelected(parsed.selected);
+      commitSelected(parsed.selected);
       setMessage(parsed.unknown.length ? `Imported with ${parsed.unknown.length} unknown bonus code(s): ${parsed.unknown.join(', ')}` : 'Civilization imported successfully.');
     } catch (error) { setMessage(error.message); }
     event.target.value = '';
   };
 
-  return <main className="app-shell">
-    <header className="topbar">
-      <div className="brand"><div className="crest">EF</div><div><h1>Empire Forge</h1><span>Custom Civilization Builder</span></div></div>
-      <div className="game-switch" aria-label="Game version">
-        <button className={game === 'ee' ? 'active' : ''} onClick={() => setGame('ee')}>Empire Earth</button>
-        <button className={game === 'aoc' ? 'active' : ''} onClick={() => setGame('aoc')}>Art of Conquest</button>
-      </div>
-      <div className="actions">
-        <input ref={fileInput} type="file" accept=".civ" hidden onChange={importFile} />
-        <button onClick={() => fileInput.current.click()}><FileUp size={17}/> Import .civ</button>
-        <button onClick={() => { setSelected({}); setMessage('Selections reset.'); }}><RotateCcw size={17}/> Reset</button>
-      </div>
-    </header>
+  const saveDraft = () => {
+    const key = (draftName || name || 'Untitled Draft').trim();
+    setDrafts(previous => ({ ...previous, [key]: { game, name, selected, savedAt: new Date().toISOString() } }));
+    setDraftName(key);
+    setMessage(`Draft “${key}” saved.`);
+  };
 
+  const loadDraft = key => {
+    const draft = drafts[key];
+    if (!draft) return;
+    setGame(draft.game); setName(draft.name); commitSelected(draft.selected); setDraftName(key);
+    setMessage(`Draft “${key}” loaded.`);
+  };
+
+  const builder = <>
     <aside className="sidebar">
-      <label className="search"><Search size={17}/><input value={query} onChange={e => setQuery(e.target.value)} placeholder="Search bonuses…" /></label>
-      <div className="side-label">Categories</div>
-      <nav>{available.map(key => <button key={key} className={key === activeCategory ? 'active' : ''} onClick={() => setActiveCategory(key)}><span>{key}</span><b>{data.categories[key].bonuses.length}</b></button>)}</nav>
-      <div className="help"><strong>Exact stacking</strong><p>Every selection in a category raises the next selection by that category’s surcharge—even another copy of the same bonus.</p></div>
+      <label className="search"><Search size={17}/><input value={query} onChange={e => setQuery(e.target.value)} placeholder={text.search} /></label>
+      <div className="side-label">{text.categories}</div>
+      <nav>{available.map(key => <button key={key} className={key === activeCategory ? 'active' : ''} onClick={() => setActiveCategory(key)}><span>{categoryName(key, lang)}</span><b>{data.categories[key].bonuses.length}</b></button>)}</nav>
+      <div className="help"><strong>{text.exactStacking}</strong><p>{text.stackingHelp}</p></div>
     </aside>
-
     <section className="catalog">
-      <div className="section-heading"><div><h2>{activeCategory}</h2><p>Category surcharge: <strong>+{category.category_cost}</strong> per prior selection</p></div><div className="subtotal">{categoryCost(category, categorySelections)} pts</div></div>
-      <div className="table-head"><span>Bonus</span><span>Base</span><span>Copies</span><span>Next copy</span></div>
+      <div className="section-heading"><div><h2>{categoryName(activeCategory, lang)}</h2><p>{text.categorySurcharge}: <strong>+{category.category_cost}</strong> {text.priorSelection}</p></div><div className="subtotal">{categoryCost(category, categorySelections)} pts</div></div>
+      <div className="table-head"><span>{text.bonus}</span><span>{text.base}</span><span>{text.copies}</span><span>{text.nextCopy}</span></div>
       <div className="bonus-list">{category.bonuses.filter(b => !query || `${activeCategory} ${b.name}`.toLowerCase().includes(query.toLowerCase())).map(bonus => {
         const copies = categorySelections.filter(item => item.hexcode === bonus.hexcode).length;
         const next = bonus.costs + nextSurcharge;
         return <div className={`bonus-row ${copies ? 'chosen' : ''}`} key={bonus.hexcode}>
-          <div><strong>{bonus.name}</strong><small>Code {bonus.hexcode}{bonus.epochs !== '?' ? ` · Epochs ${bonus.epochs}` : ''}</small></div>
-          <span>{bonus.costs}</span>
+          <div><strong>{bonusName(bonus.name, lang)}</strong><small>Code {bonus.hexcode}{bonus.epochs !== '?' ? ` · Epochs ${bonus.epochs}` : ''}</small></div><span>{bonus.costs}</span>
           <div className="stepper"><button disabled={!copies} onClick={() => removeOne(bonus)} aria-label={`Remove ${bonus.name}`}><Minus size={15}/></button><b>{copies}</b><button disabled={total + next > CAP} onClick={() => add(bonus)} aria-label={`Add ${bonus.name}`}><Plus size={15}/></button></div>
           <strong className="next-cost">{next}</strong>
         </div>;
       })}</div>
-      <div className="formula-strip">Next selection cost = its base + current category selection count × surcharge. For only repeated copies: copy <i>n</i> = base + (<i>n</i>−1) × surcharge.</div>
+      <div className="formula-strip">Next selection = base + current category count × surcharge. Repeated copy <i>n</i> = base + (<i>n</i>−1) × surcharge.</div>
     </section>
-
     <aside className="inspector">
-      <h2>Civilization details</h2>
-      <label className="name-field">Civilization name<input maxLength="31" value={name} onChange={e => setName(e.target.value)} /><span>{name.length}/31</span></label>
-      <div className="budget"><div className="budget-ring" style={{'--fill': `${Math.min(total, 100) * 3.6}deg`}}><div><strong>{total}</strong><span>/ 100</span></div></div><div><b>{CAP-total} remaining</b><span>{allSelected(selected).length} bonus entries</span></div></div>
-      <div className="selection-title"><h3>Selected bonuses</h3><span>marginal costs</span></div>
-      <div className="ledger">{Object.keys(selected).length === 0 && <div className="empty">Choose bonuses to build your civilization.</div>}{Object.entries(selected).map(([key, bonuses]) => {
-        const grouped = [...new Map(bonuses.map(b => [b.hexcode, b])).values()];
-        return <div className="ledger-category" key={key}><div><strong>{key}</strong><b>{categoryCost(data.categories[key], bonuses)} pts</b></div>{grouped.map(b => {
-          const positions = bonuses.map((item, i) => item.hexcode === b.hexcode ? i : -1).filter(i => i >= 0);
-          const costs = positions.map(i => b.costs + i * data.categories[key].category_cost);
-          return <p key={b.hexcode}><span>{b.name} ×{positions.length}</span><em>{costs.join(' + ')} = {sum(costs)}</em></p>;
-        })}</div>;
-      })}</div>
-      <div className={`validity ${total <= CAP ? 'valid' : 'invalid'}`}><ShieldCheck size={24}/><div><strong>{total <= CAP ? 'Valid civilization' : 'Over budget'}</strong><span>{total <= CAP ? 'Within the 100-point limit.' : 'Remove bonuses before export.'}</span></div></div>
+      <h2>{text.civDetails}</h2>
+      <label className="name-field">{text.civName}<input maxLength="31" value={name} onChange={e => setName(e.target.value)} /><span>{name.length}/31</span></label>
+      <BudgetRing total={total} entries={allSelected(selected).length} lang={lang}/>
+      <div className="selection-title"><h3>{text.selected}</h3><span>{text.marginal}</span></div>
+      <div className="ledger">{Object.keys(selected).length === 0 && <div className="empty">{text.empty}</div>}{Object.entries(selected).map(([key, bonuses]) => <div className="ledger-category" key={key}><div><strong>{categoryName(key, lang)}</strong><b>{categoryCost(data.categories[key], bonuses)} pts</b></div>{groupBonuses(bonuses).map(bonus => {
+        const positions = bonuses.map((item, i) => item.hexcode === bonus.hexcode ? i : -1).filter(i => i >= 0);
+        const costs = positions.map(i => bonus.costs + i * data.categories[key].category_cost);
+        return <p key={bonus.hexcode}><span>{bonusName(bonus.name, lang)} ×{positions.length}</span><em>{costs.join(' + ')} = {sum(costs)}</em></p>;
+      })}</div>)}</div>
+      <div className={`validity ${total <= CAP ? 'valid' : 'invalid'}`}><ShieldCheck size={24}/><div><strong>{total <= CAP ? text.valid : text.over}</strong><span>{total <= CAP ? text.within : text.remove}</span></div></div>
       {message && <div className="message">{message}</div>}
-      <button className="download" disabled={total > CAP || !allSelected(selected).length} onClick={download}><Download size={20}/> Download .civ</button>
-      <button className="clear" disabled={!allSelected(selected).length} onClick={() => setSelected({})}><Trash2 size={15}/> Clear all selections</button>
+      <button className="download" disabled={total > CAP || !allSelected(selected).length} onClick={download}><Download size={20}/> {text.download}</button>
+      <button className="clear" disabled={!allSelected(selected).length} onClick={() => commitSelected({})}><Trash2 size={15}/> {text.clear}</button>
     </aside>
+  </>;
+
+  const advisor = <>
+    <aside className="advisor-presets">
+      <div className="side-label">{text.strategyPresets}</div>
+      {PRESETS.map(item => { const preset = presetCopy(item, lang); return <button key={preset.id} className={preset.id === activePresetId ? 'active' : ''} onClick={() => setActivePresetId(preset.id)}><strong>{preset.name}</strong><span>{preset.summary}</span></button>; })}
+    </aside>
+    <section className="advisor-plan">
+      <div className="advisor-heading"><Sparkles size={25}/><div><h2>{activePreset.name}</h2><p>{activePreset.summary}</p></div></div>
+      <div className="plan-title"><h3>{text.bonusPlan}</h3><b>{presetTotal} / 100 {text.points}</b></div>
+      <div className="plan-table">{Object.entries(presetSelected).map(([key, bonuses]) => <div className="plan-category" key={key}><div><strong>{categoryName(key, lang)}</strong><b>{categoryCost(data.categories[key], bonuses)} pts</b></div>{groupBonuses(bonuses).map(bonus => {
+        const positions = bonuses.map((item, index) => item.hexcode === bonus.hexcode ? index : -1).filter(index => index >= 0);
+        const costs = positions.map(index => bonus.costs + index * data.categories[key].category_cost);
+        return <p key={bonus.hexcode}><span>{bonusName(bonus.name, lang)}</span><span>×{positions.length}</span><em>{costs.join(' + ')} = {sum(costs)}</em></p>;
+      })}</div>)}</div>
+      <div className="preset-reason"><Lightbulb size={20}/><div><strong>{text.why}</strong><p>{activePreset.reason}</p></div></div>
+      <button className="apply-preset" disabled={presetTotal > CAP} onClick={() => { commitSelected(presetSelected); setName(activePreset.name); setMode('builder'); setMessage(lang === 'fr' ? `${activePreset.name} appliqué. Vous pouvez maintenant l’ajuster.` : `${activePreset.name} applied. You can now fine-tune it.`); }}><Sparkles size={18}/> {text.apply}</button>
+    </section>
+    <aside className="advisor-inspector">
+      <h2>{text.analysis}</h2>
+      <BudgetRing total={total} entries={allSelected(selected).length} lang={lang}/>
+      <section className="analysis-section"><h3><Gauge size={16}/> {text.efficiency}</h3>{Object.entries(selected).flatMap(([key, bonuses]) => groupBonuses(bonuses).map(bonus => {
+        const positions = bonuses.map((item, index) => item.hexcode === bonus.hexcode ? index : -1).filter(index => index >= 0);
+        const rating = efficiencyLabel(data.categories[key], bonus, positions);
+        return <div className="analysis-row" key={`${key}-${bonus.hexcode}`}><span>{bonusName(bonus.name, lang)} ×{positions.length}</span><b className={rating.tone}>{text[rating.key]}</b></div>;
+      })).slice(0, 7)}{!allSelected(selected).length && <div className="empty-small">{text.noAnalysis}</div>}</section>
+      <section className="analysis-section"><h3><ShieldCheck size={16}/> {text.smartValidation}</h3>{validation.map((item, index) => <div className={`validation-row ${item.tone}`} key={`${item.text}-${index}`}>{item.tone === 'ok' ? <CheckCircle2 size={14}/> : <AlertTriangle size={14}/>}<span>{item.text}</span></div>)}</section>
+      <section className="analysis-section recommendations"><h3><Lightbulb size={16}/> {text.recommendations}</h3>{Object.entries(selected).flatMap(([key, bonuses]) => groupBonuses(bonuses).map(bonus => <p key={`${key}-${bonus.hexcode}`}>{recommendationFor(key, bonus, lang)}</p>)).slice(0, 3)}{!allSelected(selected).length && <p>{text.noRecommendation}</p>}</section>
+      <section className="draft-box"><h3><Save size={16}/> {text.drafts}</h3><div><input value={draftName} onChange={event => setDraftName(event.target.value)} placeholder={text.draftName}/><button onClick={saveDraft}><Save size={15}/> {text.save}</button></div>{Object.keys(drafts).length > 0 && <select value="" onChange={event => loadDraft(event.target.value)}><option value="">{text.loadDraft}</option>{Object.keys(drafts).map(key => <option key={key} value={key}>{key}</option>)}</select>}</section>
+      {message && <div className="message">{message}</div>}
+    </aside>
+  </>;
+
+  return <main className={`app-shell ${mode === 'advisor' ? 'advisor-shell' : ''}`}>
+    <Header {...{ game, setGame, mode, setMode, undo, redo, canUndo: !!undoStack.length, canRedo: !!redoStack.length, fileInput, importFile, autosaved, lang, setLang }}/>
+    {mode === 'builder' ? builder : advisor}
   </main>;
 }
 
