@@ -1,7 +1,7 @@
 import React, { useEffect, useMemo, useRef, useState } from 'react';
 import { createRoot } from 'react-dom/client';
 import {
-  AlertTriangle, CheckCircle2, Download, FileUp, Gauge, Lightbulb,
+  AlertTriangle, CheckCircle2, Download, FileUp, Gauge, Info, Lightbulb,
   Minus, Plus, Redo2, RotateCcw, Save, Search, ShieldCheck,
   Sparkles, Trash2, Undo2,
 } from 'lucide-react';
@@ -242,6 +242,61 @@ function bonusName(name, lang) {
   return replacements.reduce((text, [from, to]) => text.replace(from, to), name);
 }
 
+const CATEGORY_GUIDES = [
+  ['Civ - Economy', ['Early', 'All game'], 'Improves food, wood, stone, gold, iron, hunting, or fishing income. Economic bonuses compound because earlier resources create workers, buildings, and armies sooner.', 'Best for openings, booming, long games, and supporting expensive specialist armies.', 'Match the resource to the plan: stone for walls, gold for priests, and wood/gold/iron for naval play.', 'Do not buy every resource bonus; invest in the resources your build will actually consume.'],
+  ['Citizens and Fishing Boats', ['Early', 'All game'], 'Improves the units that gather resources and construct your economy. Speed and durability protect long-term income; build-time bonuses accelerate expansion.', 'Best for fast openings, risky maps, raiding resistance, and economic civilizations.', 'Pairs naturally with Economy bonuses because stronger workers make gathering bonuses easier to exploit.', 'Heavy investment helps indirectly and can leave the army itself underpowered.'],
+  ['Civ - Buildings, Walls and Towers', ['Early', 'Mid', 'Late'], 'Applies defensive and construction bonuses to structures, walls, and towers. Hit points and range strengthen fortifications; cost and build time make them easier to deploy.', 'Best for chokepoints, long defense, protected economies, and tower-supported pushes.', 'Stone gathering is the natural partner because walls, gates, and towers require stone.', 'Static defenses cannot replace map control or a mobile army, especially against siege.'],
+  ['Civ - General', ['All game'], 'Provides civilization-wide utility such as population capacity, conversion resistance, and mountain combat.', 'Best when the selected global bonus solves a specific limit in your strategy.', 'Population supports mass armies; conversion resistance helps valuable units; mountain combat is terrain-dependent.', 'These bonuses are powerful only when the relevant situation actually occurs.'],
+  ['Special Powers', ['Situational'], 'Adds a distinctive civilization power rather than a normal unit statistic. Effects can reshape economy, exploration, production, or combat.', 'Best when the power is central to the whole game plan.', 'Build the remaining bonuses around the chosen power instead of treating it as an isolated extra.', 'High point costs can force major sacrifices elsewhere.'],
+  ['Infantry - Sword', ['Early', 'Mid'], 'Strengthens sword-class melee infantry, typically used as accessible frontline pressure.', 'Best for early aggression, mass production, and holding ground against suitable targets.', 'Cost and build-time bonuses support a swarm; attack and health support a smaller elite force.', 'Unit counters still matter—do not expect one infantry type to defeat everything.'],
+  ['Infantry - Spear', ['Early', 'Mid'], 'Strengthens spear-class melee infantry, a defensive frontline commonly chosen against cavalry-type threats.', 'Best for anti-cavalry defense, chokepoints, and inexpensive screening units.', 'Armor and health help them hold while ranged units deal damage from behind.', 'Specializing too heavily is risky if the opponent changes unit type.'],
+  ['Infantry - Ranged', ['Mid', 'Late'], 'Improves gun and other ranged infantry available in later epoch ranges.', 'Best for focus fire, defended firing lines, and armies built around ranged damage.', 'Range and speed improve positioning; a durable melee screen protects the investment.', 'Ranged infantry needs protection and may be inefficient outside its available epochs.'],
+  ['Archers - Foot', ['Early', 'Mid'], 'Improves foot archers and their ability to attack safely from distance.', 'Best for early ranged pressure, kiting, and firing behind walls or infantry.', 'Range is strategically valuable; attack and speed help focus fire and repositioning.', 'Archers eventually disappear from later epoch ranges, so check the match limits.'],
+  ['Cavalry', ['Early', 'Mid'], 'Improves fast mounted units for flanking, raiding, reinforcement, or mobile ranged pressure.', 'Best on open maps where mobility creates economic damage or favorable engagements.', 'Speed and attack suit raiding; health and armor help sustained frontline use.', 'Tight terrain, walls, and spear counters reduce the value of mobility.'],
+  ['Tanks', ['Late'], 'Improves armored late-era units with attack, armor, range, speed, durability, cost, or production bonuses.', 'Best for Industrial and later games centered on expensive armored armies.', 'Support tanks with economy and anti-infantry or anti-air coverage rather than using them alone.', 'Wasted in matches that end before tanks become available.'],
+  ['Siege Weapons', ['Mid', 'Late'], 'Improves siege weapons and mobile anti-air, including area damage and rate-of-fire options.', 'Best for breaking walls, punishing dense formations, and supporting slow pushes.', 'Range and attack work well behind a durable frontline.', 'Siege is vulnerable when isolated and requires an economy capable of replacing losses.'],
+  ['Field Cannon', ['Mid', 'Late'], 'Improves field cannon and anti-tank guns used against armored or high-value targets.', 'Best when later-epoch enemy armor is expected.', 'Range and attack increase threat projection; infantry or tanks should screen them.', 'This category is inefficient in early-only matches or against infantry-heavy armies.'],
+  ['Ships -', ['Map dependent'], 'Improves the named naval role: capital ships, escorts, or transports/submarines.', 'Best on islands, coastal maps, and games where sea control protects trade or invasions.', 'Naval civilizations also benefit from wood, gold, iron, fishing, and durable fishing boats.', 'Naval points provide little value on landlocked maps.'],
+  ['Aircraft -', ['Late'], 'Improves the named aircraft role: fighters, bombers, or helicopters.', 'Best for late-game mobility, rapid response, interception, or strikes beyond ground defenses.', 'Fighters protect bombers; flight time and speed improve reach; production bonuses replace losses.', 'Aircraft arrive late and require role coverage—one aircraft class is rarely a complete air force.'],
+  ['Religion - Priests', ['Early', 'Mid', 'Late'], 'Improves priests or medics used for conversion, healing, or army support.', 'Best for gold-supported armies that protect valuable support units.', 'Gold income, range, speed, and durability keep priests effective behind the frontline.', 'Priests require attention and protection; bonuses are wasted if you rarely train them.'],
+  ['Religion - Prophets', ['Early', 'Mid', 'Late'], 'Improves prophets used for disasters and strategic disruption.', 'Best for players who actively use prophet powers to control space or damage economies.', 'Range and speed improve safe positioning; cost and build time support repeated use.', 'Highly tactical and less useful when prophet micro is not part of your playstyle.'],
+  ['Cybers - Combat', ['Very late'], 'Improves combat cybers in Nano-age warfare.', 'Best for matches guaranteed to reach the Nano Age.', 'Attack and range form the damage core; economy and Ultra cybers protect the transition.', 'Completely wasted when the epoch limit ends before cybers appear.'],
+  ['Cybers - Ultra', ['Very late'], 'Improves durable Ultra cyber units used to support late-game cyber armies.', 'Best as a protective complement to Combat cybers.', 'Durability, armor, speed, and lower costs help preserve an expensive frontline.', 'Offers little direct damage and is unavailable outside very late epochs.'],
+  ['Space', ['Very late'], 'Improves spaceships or space fighters in Space Age combat.', 'Best only for games that include Space Age warfare.', 'Choose fighter bonuses for screening and spaceship bonuses for the main fleet.', 'This is the most epoch-restricted investment and can produce zero value in ordinary games.'],
+];
+
+const FRENCH_GUIDES = {
+  'Civ - Economy': ['Améliore la collecte de nourriture, bois, pierre, or, fer, chasse ou pêche. Un bonus économique précoce produit plus vite citoyens, bâtiments et armées.', 'Excellent au départ, pour une croissance rapide et les parties longues.', 'Choisissez la ressource liée au plan : pierre pour les murs, or pour les prêtres, bois/or/fer pour la marine.', 'Évitez d’acheter toutes les ressources : renforcez celles que votre stratégie consomme.'],
+  'Citizens and Fishing Boats': ['Améliore les unités qui récoltent et construisent. Vitesse et résistance protègent le revenu; la construction accélère l’expansion.', 'Excellent pour les départs rapides, les cartes risquées et la résistance aux raids.', 'Se combine naturellement aux bonus économiques.', 'Un investissement excessif améliore peu directement votre armée.'],
+  'Civ - Buildings, Walls and Towers': ['Améliore bâtiments, murs et tours. Points de vie et portée renforcent la défense; coût et construction facilitent son déploiement.', 'Excellent aux passages étroits, en défense longue et pour protéger l’économie.', 'L’extraction de pierre est son partenaire naturel.', 'Une défense statique ne remplace ni le contrôle de carte ni une armée mobile.'],
+  'Civ - General': ['Fournit des avantages globaux : population, résistance à la conversion et combat en montagne.', 'Excellent lorsqu’un bonus précis résout une limite de votre plan.', 'Population pour les armées nombreuses; résistance pour les unités coûteuses.', 'La valeur dépend fortement de la situation rencontrée.'],
+  'Special Powers': ['Ajoute un pouvoir distinctif qui peut transformer économie, exploration, production ou combat.', 'Excellent lorsque le pouvoir est au cœur du plan complet.', 'Construisez les autres bonus autour du pouvoir choisi.', 'Le coût élevé impose souvent des sacrifices importants.'],
+  'Infantry - Sword': ['Renforce l’infanterie de mêlée à épée, généralement accessible tôt pour tenir le front.', 'Excellent pour l’agression initiale et la production de masse.', 'Coût et production pour une horde; attaque et santé pour une force d’élite.', 'Les contres d’unités restent importants.'],
+  'Infantry - Spear': ['Renforce les lanciers de mêlée, souvent choisis comme ligne défensive contre la cavalerie.', 'Excellent contre la cavalerie et aux passages étroits.', 'Armure et santé devant des unités à distance.', 'Une spécialisation excessive devient risquée si l’adversaire change d’unité.'],
+  'Infantry - Ranged': ['Améliore les fantassins à distance et à poudre des époques plus tardives.', 'Excellent pour le tir concentré et les lignes protégées.', 'Portée et vitesse pour le placement; écran de mêlée pour la protection.', 'Peut être inutile hors des époques où ces unités existent.'],
+  'Archers - Foot': ['Améliore les archers à pied capables d’attaquer à distance.', 'Excellent pour la pression initiale, le harcèlement et le tir derrière une ligne.', 'Portée, attaque et vitesse favorisent le tir concentré.', 'Les archers disparaissent dans les époques plus tardives.'],
+  Cavalry: ['Améliore les unités montées rapides utilisées pour raids, flancs et renforts.', 'Excellent sur les cartes ouvertes.', 'Vitesse et attaque pour les raids; santé et armure pour le front.', 'Les murs, passages étroits et lanciers réduisent sa valeur.'],
+  Tanks: ['Améliore les unités blindées des époques tardives.', 'Excellent pour les parties industrielles et ultérieures.', 'Ajoutez économie, anti-infanterie et protection antiaérienne.', 'Inutile si la partie se termine avant leur apparition.'],
+  'Siege Weapons': ['Améliore les armes de siège et la DCA mobile, avec dégâts de zone et cadence.', 'Excellent pour briser les murs et punir les groupes compacts.', 'Portée et attaque derrière une ligne résistante.', 'Le siège isolé est vulnérable et coûteux à remplacer.'],
+  'Field Cannon': ['Améliore les canons de campagne et antichars contre les cibles blindées.', 'Excellent lorsque des blindés tardifs sont attendus.', 'Portée et attaque, avec une ligne de protection.', 'Peu rentable dans les parties limitées aux premières époques.'],
+  'Ships -': ['Améliore le rôle naval indiqué : navires principaux, escorte ou transports/sous-marins.', 'Excellent sur les îles et cartes côtières.', 'Ajoutez bois, or, fer, pêche et bateaux de pêche résistants.', 'Presque inutile sur une carte sans accès maritime.'],
+  'Aircraft -': ['Améliore chasseurs, bombardiers ou hélicoptères selon la catégorie.', 'Excellent en fin de partie pour mobilité, interception et frappes.', 'Les chasseurs protègent les bombardiers; vitesse et autonomie augmentent la portée.', 'Arrive tard et une seule classe ne forme pas une force aérienne complète.'],
+  'Religion - Priests': ['Améliore prêtres ou médecins utilisés pour conversion, soin et soutien.', 'Excellent pour une armée financée par l’or qui protège ses soutiens.', 'Or, portée, vitesse et santé gardent les prêtres derrière le front.', 'Inutile si vous entraînez rarement des prêtres.'],
+  'Religion - Prophets': ['Améliore les prophètes employés pour les catastrophes et la perturbation.', 'Excellent pour les joueurs qui utilisent activement leurs pouvoirs.', 'Portée et vitesse améliorent le placement; coût et production facilitent leur usage.', 'Demande du contrôle et de l’attention.'],
+  'Cybers - Combat': ['Améliore les cybers de combat de l’Âge Nano.', 'Excellent uniquement si la partie atteint l’Âge Nano.', 'Attaque et portée pour les dégâts, Ultras pour la protection.', 'Totalement inutile si la limite d’époque est antérieure.'],
+  'Cybers - Ultra': ['Améliore les Ultras résistants qui soutiennent une armée cyber.', 'Excellent comme protection des Cybers de combat.', 'Armure, santé, vitesse et coût renforcent le front.', 'Offre peu de dégâts directs et arrive très tard.'],
+  Space: ['Améliore vaisseaux et chasseurs spatiaux.', 'Excellent uniquement dans les parties incluant l’Âge spatial.', 'Chasseurs pour l’écran, vaisseaux pour la force principale.', 'Investissement extrêmement limité par les époques.'],
+};
+
+function categoryGuide(name, lang) {
+  const match = CATEGORY_GUIDES.find(([pattern]) => name === pattern || name.startsWith(pattern));
+  const [, phases, summary, good, pair, caution] = match || [name, ['Situational'], 'Improves the units listed in this category.', 'Best when those units form an important part of your planned army.', 'Combine it with economy and complementary unit types.', 'Check the epoch range and enemy counters before specializing.'];
+  if (lang !== 'fr') return { phases, summary, good, pair, caution };
+  const phaseMap = { Early: 'Début', Mid: 'Milieu', Late: 'Fin', 'Very late': 'Très tard', 'All game': 'Toute la partie', 'Map dependent': 'Selon la carte', Situational: 'Situationnel' };
+  const french = FRENCH_GUIDES[match?.[0]] || ['Améliore les unités de cette catégorie.', 'Excellent lorsque ces unités sont importantes dans votre plan.', 'Combinez avec une économie et des unités complémentaires.', 'Vérifiez les époques et les contres adverses avant de vous spécialiser.'];
+  return { phases: phases.map(phase => phaseMap[phase] || phase), summary: french[0], good: french[1], pair: french[2], caution: french[3] };
+}
+
 function presetCopy(preset, lang) {
   if (lang !== 'fr') return preset;
   const [name, summary, reason] = FR_PRESETS[preset.id];
@@ -471,7 +526,7 @@ function CompactPlan({ data, selected, lang }) {
   const total = totalCost(data, selected);
   return <div className="compact-plan">
     <div className="plan-title"><h3>{lang === 'fr' ? 'Plan de bonus' : 'Bonus plan'}</h3><b>{total} / 100</b></div>
-    <div className="plan-table">{Object.entries(selected).map(([key, bonuses]) => <div className="plan-category" key={key}><div><strong>{categoryName(key, lang)}</strong><b>{categoryCost(data.categories[key], bonuses)} pts</b></div>{groupBonuses(bonuses).map(bonus => {
+    <div className="plan-table">{Object.entries(selected).map(([key, bonuses]) => <div className="plan-category" key={key}><div><span className="plan-category-name"><strong>{categoryName(key, lang)}</strong><CategoryHelp name={key} lang={lang}/></span><b>{categoryCost(data.categories[key], bonuses)} pts</b></div>{groupBonuses(bonuses).map(bonus => {
       const positions = bonuses.map((item, index) => item.hexcode === bonus.hexcode ? index : -1).filter(index => index >= 0);
       const costs = positions.map(index => bonus.costs + index * data.categories[key].category_cost);
       return <p key={bonus.hexcode}><span>{bonusName(bonus.name, lang)}</span><span>×{positions.length}</span><em>{costs.join(' + ')} = {sum(costs)}</em></p>;
@@ -505,6 +560,17 @@ function RangeControl({ label, value, onChange, min = 0, max = 100 }) {
 function ToolNav({ tool, setTool, lang }) {
   const labels = { presets: lang === 'fr' ? 'Stratégies' : 'Presets', generator: lang === 'fr' ? 'Générateur' : 'Generator', compare: lang === 'fr' ? 'Comparer' : 'Compare', optimize: lang === 'fr' ? 'Optimiser' : 'Optimize', walls: lang === 'fr' ? 'Laboratoire des murs' : 'Wall Lab' };
   return <nav className="suite-tabs">{Object.entries(labels).map(([key, label]) => <button key={key} className={tool === key ? 'active' : ''} onClick={() => setTool(key)}>{label}</button>)}</nav>;
+}
+
+function GuideContent({ name, lang, compact = false }) {
+  const guide = categoryGuide(name, lang);
+  const labels = lang === 'fr' ? { best: 'Idéal pour', pair: 'À combiner avec', caution: 'Attention' } : { best: 'Best for', pair: 'Pairs with', caution: 'Watch out' };
+  if (compact) return <div className="guide-content compact"><div className="phase-tags">{guide.phases.map(phase => <span key={phase}>{phase}</span>)}</div><p>{guide.summary}</p><dl><div><dt>{labels.best}</dt><dd>{guide.good}</dd></div><div><dt>{labels.caution}</dt><dd>{guide.caution}</dd></div></dl></div>;
+  return <div className={compact ? 'guide-content compact' : 'guide-content'}><div className="phase-tags">{guide.phases.map(phase => <span key={phase}>{phase}</span>)}</div><p>{guide.summary}</p><dl><div><dt>{labels.best}</dt><dd>{guide.good}</dd></div><div><dt>{labels.pair}</dt><dd>{guide.pair}</dd></div><div><dt>{labels.caution}</dt><dd>{guide.caution}</dd></div></dl></div>;
+}
+
+function CategoryHelp({ name, lang }) {
+  return <span className="category-help" tabIndex="0" aria-label={`${categoryName(name, lang)} information`}><Info size={14}/><span className="category-tooltip"><strong>{categoryName(name, lang)}</strong><GuideContent name={name} lang={lang} compact/></span></span>;
 }
 
 function StrategyTools({ data, game, lang, tool, setTool, showNav = true, generator, setGenerator, generatedPreview, compareIds, setCompareIds, optimizedSelected, selected, wallSettings, setWallSettings, wallSelected, applyStrategy, commitSelected }) {
@@ -691,11 +757,12 @@ function App() {
     <aside className="sidebar">
       <label className="search"><Search size={17}/><input value={query} onChange={e => setQuery(e.target.value)} placeholder={text.search} /></label>
       <div className="side-label">{text.categories}</div>
-      <nav>{available.map(key => <button key={key} className={key === activeCategory ? 'active' : ''} onClick={() => setActiveCategory(key)}><span>{categoryName(key, lang)}</span><b>{data.categories[key].bonuses.length}</b></button>)}</nav>
+      <nav>{available.map(key => <div className="category-nav-item" key={key}><button className={key === activeCategory ? 'active' : ''} onClick={() => setActiveCategory(key)}><span>{categoryName(key, lang)}</span><b>{data.categories[key].bonuses.length}</b></button><CategoryHelp name={key} lang={lang}/></div>)}</nav>
       <div className="help"><strong>{text.exactStacking}</strong><p>{text.stackingHelp}</p></div>
     </aside>
     <section className="catalog">
       <div className="section-heading"><div><h2>{categoryName(activeCategory, lang)}</h2><p>{text.categorySurcharge}: <strong>+{category.category_cost}</strong> {text.priorSelection}</p></div><div className="subtotal">{categoryCost(category, categorySelections)} pts</div></div>
+      <section className="category-guide-panel"><div className="guide-heading"><Info size={18}/><div><strong>{lang === 'fr' ? 'Guide stratégique de la catégorie' : 'Category strategy guide'}</strong><span>{lang === 'fr' ? 'Conseils selon la phase et le style de jeu' : 'Phase and playstyle guidance'}</span></div></div><GuideContent name={activeCategory} lang={lang}/></section>
       <div className="table-head"><span>{text.bonus}</span><span>{text.base}</span><span>{text.copies}</span><span>{text.nextCopy}</span></div>
       <div className="bonus-list">{category.bonuses.filter(b => !query || `${activeCategory} ${b.name}`.toLowerCase().includes(query.toLowerCase())).map(bonus => {
         const copies = categorySelections.filter(item => item.hexcode === bonus.hexcode).length;
