@@ -71,6 +71,92 @@ const PRESETS = [
       ['Cybers - Ultra', '25% Hit Points', 2], ['Cybers - Ultra', '20% Armor', 1],
     ],
   },
+  {
+    id: 'dawn', name: 'Dawn Age Momentum', summary: 'Accelerate the opening economy and field swordsmen early.',
+    reason: 'Combines food, wood, and durable workers with inexpensive early infantry pressure for a flexible opening.',
+    entries: [
+      ['Civ - Economy', '20% Farming', 1], ['Civ - Economy', '20% Hunting and Foraging', 1],
+      ['Civ - Economy', '15% Wood Cutting', 1], ['Citizens and Fishing Boats', '30% Hit Points', 2],
+      ['Citizens and Fishing Boats', '20% Speed', 1], ['Infantry - Sword', '25% Attack', 2],
+      ['Infantry - Sword', '30% Build Time Decrease', 2],
+    ],
+  },
+  {
+    id: 'harvest', name: 'Fast Start Harvesters', summary: 'Gather opening food and wood at maximum tempo.',
+    reason: 'Prioritizes the resources that decide early settlement growth, housing, farms, and first military production.',
+    entries: [
+      ['Civ - Economy', '20% Hunting and Foraging', 2], ['Civ - Economy', '15% Wood Cutting', 2],
+      ['Citizens and Fishing Boats', '20% Speed', 1],
+    ],
+  },
+  {
+    id: 'stonewall', name: 'Stonewall Fortress', summary: 'Build cheaper walls and make them brutally hard to destroy.',
+    reason: 'Triple structure durability creates the hard shell; lower cost and faster construction make the defense practical.',
+    entries: [
+      ['Civ - Buildings, Walls and Towers', '50% Hit Points', 3],
+      ['Civ - Buildings, Walls and Towers', '15% Cost Reduction', 1],
+      ['Civ - Buildings, Walls and Towers', '30% Build Time Decrease', 1],
+    ],
+  },
+  {
+    id: 'rapid_build', name: 'Rapid Construction', summary: 'Raise settlements, towers, and production lines quickly.',
+    reason: 'Fast and cheaper structures shorten vulnerable build windows while worker construction speed supports expansion.',
+    entries: [
+      ['Civ - Buildings, Walls and Towers', '30% Build Time Decrease', 3],
+      ['Civ - Buildings, Walls and Towers', '15% Cost Reduction', 2],
+      ['Citizens and Fishing Boats', '10% Build Time Decrease', 1], ['Civ - Economy', '15% Wood Cutting', 1],
+    ],
+  },
+  {
+    id: 'spear_wall', name: 'Spear Wall Defense', summary: 'Stop early cavalry and hold narrow approaches.',
+    reason: 'Layered armor and health create a resilient frontline, while faster training replaces losses before the defense collapses.',
+    entries: [
+      ['Infantry - Spear (Melee)', '20% Armor', 3], ['Infantry - Spear (Melee)', '20% Hit Points', 2],
+      ['Infantry - Spear (Melee)', '30% Build Time Decrease', 2],
+    ],
+  },
+  {
+    id: 'cheap_legion', name: 'Mass Army', summary: 'Overwhelm opponents with affordable, fast-produced swordsmen.',
+    reason: 'Cost and training bonuses sustain continuous production, with attack and durability keeping each unit relevant.',
+    entries: [
+      ['Infantry - Sword', '20% Cost Reduction', 2], ['Infantry - Sword', '30% Build Time Decrease', 2],
+      ['Infantry - Sword', '25% Attack', 2], ['Infantry - Sword', '20% Hit Points', 1],
+    ],
+  },
+  {
+    id: 'siege', name: 'Siege Breaker', summary: 'Destroy packed armies and fortified positions.',
+    reason: 'Area damage and rate of fire punish dense formations; attack and range let siege units work from safer ground.',
+    entries: [
+      ['Siege Weapons and Mobile AA', '20% Area Damage', 2], ['Siege Weapons and Mobile AA', '25% Rate of Fire', 2],
+      ['Siege Weapons and Mobile AA', '25% Attack', 2], ['Siege Weapons and Mobile AA', '20% Range', 2],
+    ],
+  },
+  {
+    id: 'holy_guard', name: 'Holy Guard', summary: 'Support a defensive army with durable, mobile priests.',
+    reason: 'Extra range keeps priests behind the line, while health and speed improve survival during retreats and counterattacks.',
+    entries: [
+      ['Religion - Priests', '20% Range', 3], ['Religion - Priests', '20% Hit Points', 3],
+      ['Religion - Priests', '20% Speed', 2], ['Religion - Priests', '20% Cost Reduction', 1],
+    ],
+  },
+  {
+    id: 'mountain', name: 'Mountain Stronghold', summary: 'Turn difficult terrain into a fortified killing ground.',
+    reason: 'Exceptional structure durability and range combine with the mountain combat bonus for terrain-led defense.',
+    entries: [
+      ['Civ - General', '20% Mountain Combat Bonus', 1],
+      ['Civ - Buildings, Walls and Towers', '50% Hit Points', 3],
+      ['Civ - Buildings, Walls and Towers', '20% Range', 2],
+      ['Civ - Buildings, Walls and Towers', '30% Build Time Decrease', 1],
+    ],
+  },
+  {
+    id: 'militia', name: 'Citizen Militia', summary: 'Make raids costly and keep workers alive under pressure.',
+    reason: 'Attack and range let citizens fight back, while extreme durability and conversion resistance protect the economy.',
+    entries: [
+      ['Citizens and Fishing Boats', '30% Attack', 3], ['Citizens and Fishing Boats', '35% Range', 3],
+      ['Citizens and Fishing Boats', '30% Hit Points', 3], ['Civ - General', '50% Conversion Resistance', 1],
+    ],
+  },
 ];
 
 const FR_CATEGORIES = {
@@ -128,6 +214,16 @@ const FR_PRESETS = {
   naval: ['Suprématie navale', 'Dominez les mers avec une flotte équilibrée.', 'Répartit les points entre navires principaux et escorte pour combiner dégâts et couverture.'],
   air: ['Puissance aérienne', 'Frappez rapidement avec chasseurs, bombardiers et hélicoptères.', 'Améliore plusieurs rôles aériens afin qu’un seul contre ne neutralise pas toute la stratégie.'],
   cyber: ['Futur cybernétique', 'Déployez une force spécialisée de l’Âge Nano.', 'Les Cybers de combat fournissent les dégâts tandis que les Ultras protègent les unités coûteuses.'],
+  dawn: ['Élan de l’âge initial', 'Accélérez l’économie et déployez rapidement des épéistes.', 'Combine nourriture, bois et citoyens robustes avec une pression militaire flexible en début de partie.'],
+  harvest: ['Récolteurs rapides', 'Récoltez nourriture et bois à un rythme maximal dès le départ.', 'Privilégie les ressources essentielles aux premières colonies, fermes et productions militaires.'],
+  stonewall: ['Forteresse imprenable', 'Construisez des murs moins chers et extrêmement difficiles à détruire.', 'La durabilité triplée forme une coque solide; le coût et la construction améliorés la rendent pratique.'],
+  rapid_build: ['Construction rapide', 'Érigez rapidement colonies, tours et centres de production.', 'Des bâtiments rapides et moins chers réduisent leur vulnérabilité pendant la construction.'],
+  spear_wall: ['Mur de lanciers', 'Bloquez la cavalerie et tenez les passages étroits.', 'Armure et santé forment une ligne robuste tandis que l’entraînement rapide remplace les pertes.'],
+  cheap_legion: ['Armée de masse', 'Submergez l’adversaire avec des épéistes abordables.', 'La réduction du coût et du temps de production maintient une production continue et efficace.'],
+  siege: ['Briseur de siège', 'Détruisez les armées regroupées et les positions fortifiées.', 'Les dégâts de zone, la cadence, l’attaque et la portée rendent l’artillerie plus dangereuse.'],
+  holy_guard: ['Garde sacrée', 'Soutenez une armée défensive avec des prêtres résistants.', 'La portée protège les prêtres derrière la ligne; santé et vitesse facilitent leur survie.'],
+  mountain: ['Bastion montagneux', 'Transformez le terrain difficile en zone fortifiée.', 'La durabilité et la portée des structures se combinent au bonus de combat en montagne.'],
+  militia: ['Milice citoyenne', 'Rendez les raids coûteux et protégez vos travailleurs.', 'Attaque, portée, durabilité et résistance à la conversion protègent durablement l’économie.'],
 };
 
 function categoryName(name, lang) { return lang === 'fr' ? FR_CATEGORIES[name] || name : name; }
@@ -382,6 +478,7 @@ function App() {
   const activePreset = useMemo(() => presetCopy(activePresetBase, lang), [activePresetBase, lang]);
   const presetSelected = useMemo(() => data ? hydratePreset(data, activePreset, game) : {}, [data, activePreset, game]);
   const presetTotal = useMemo(() => data ? totalCost(data, presetSelected) : 0, [data, presetSelected]);
+  const presetValidation = useMemo(() => data ? buildValidation(data, presetSelected, presetTotal, game, lang) : [], [data, presetSelected, presetTotal, game, lang]);
 
   if (loadError) return <div className="loading">{loadError}</div>;
   if (!data) return <div className="loading">Loading civilization records…</div>;
@@ -497,14 +594,14 @@ function App() {
     </section>
     <aside className="advisor-inspector">
       <h2>{text.analysis}</h2>
-      <BudgetRing total={total} entries={allSelected(selected).length} lang={lang}/>
-      <section className="analysis-section"><h3><Gauge size={16}/> {text.efficiency}</h3>{Object.entries(selected).flatMap(([key, bonuses]) => groupBonuses(bonuses).map(bonus => {
+      <BudgetRing total={presetTotal} entries={allSelected(presetSelected).length} lang={lang}/>
+      <section className="analysis-section"><h3><Gauge size={16}/> {text.efficiency}</h3>{Object.entries(presetSelected).flatMap(([key, bonuses]) => groupBonuses(bonuses).map(bonus => {
         const positions = bonuses.map((item, index) => item.hexcode === bonus.hexcode ? index : -1).filter(index => index >= 0);
         const rating = efficiencyLabel(data.categories[key], bonus, positions);
         return <div className="analysis-row" key={`${key}-${bonus.hexcode}`}><span>{bonusName(bonus.name, lang)} ×{positions.length}</span><b className={rating.tone}>{text[rating.key]}</b></div>;
-      })).slice(0, 7)}{!allSelected(selected).length && <div className="empty-small">{text.noAnalysis}</div>}</section>
-      <section className="analysis-section"><h3><ShieldCheck size={16}/> {text.smartValidation}</h3>{validation.map((item, index) => <div className={`validation-row ${item.tone}`} key={`${item.text}-${index}`}>{item.tone === 'ok' ? <CheckCircle2 size={14}/> : <AlertTriangle size={14}/>}<span>{item.text}</span></div>)}</section>
-      <section className="analysis-section recommendations"><h3><Lightbulb size={16}/> {text.recommendations}</h3>{Object.entries(selected).flatMap(([key, bonuses]) => groupBonuses(bonuses).map(bonus => <p key={`${key}-${bonus.hexcode}`}>{recommendationFor(key, bonus, lang)}</p>)).slice(0, 3)}{!allSelected(selected).length && <p>{text.noRecommendation}</p>}</section>
+      })).slice(0, 7)}{!allSelected(presetSelected).length && <div className="empty-small">{text.noAnalysis}</div>}</section>
+      <section className="analysis-section"><h3><ShieldCheck size={16}/> {text.smartValidation}</h3>{presetValidation.map((item, index) => <div className={`validation-row ${item.tone}`} key={`${item.text}-${index}`}>{item.tone === 'ok' ? <CheckCircle2 size={14}/> : <AlertTriangle size={14}/>}<span>{item.text}</span></div>)}</section>
+      <section className="analysis-section recommendations"><h3><Lightbulb size={16}/> {text.recommendations}</h3>{Object.entries(presetSelected).flatMap(([key, bonuses]) => groupBonuses(bonuses).map(bonus => <p key={`${key}-${bonus.hexcode}`}>{recommendationFor(key, bonus, lang)}</p>)).slice(0, 3)}{!allSelected(presetSelected).length && <p>{text.noRecommendation}</p>}</section>
       <section className="draft-box"><h3><Save size={16}/> {text.drafts}</h3><div><input value={draftName} onChange={event => setDraftName(event.target.value)} placeholder={text.draftName}/><button onClick={saveDraft}><Save size={15}/> {text.save}</button></div>{Object.keys(drafts).length > 0 && <select value="" onChange={event => loadDraft(event.target.value)}><option value="">{text.loadDraft}</option>{Object.keys(drafts).map(key => <option key={key} value={key}>{key}</option>)}</select>}</section>
       {message && <div className="message">{message}</div>}
     </aside>
