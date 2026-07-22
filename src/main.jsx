@@ -1,7 +1,7 @@
 import React, { useEffect, useMemo, useRef, useState } from 'react';
 import { createRoot } from 'react-dom/client';
 import {
-  AlertTriangle, CheckCircle2, Download, FileUp, Gauge, Info, Lightbulb,
+  AlertTriangle, CheckCircle2, Copy, Download, FileUp, Files, FolderOpen, Gauge, Info, Lightbulb,
   Minus, Plus, Redo2, RotateCcw, Save, Search, ShieldCheck,
   Sparkles, Trash2, Undo2,
 } from 'lucide-react';
@@ -179,7 +179,7 @@ const FR_CATEGORIES = {
 
 const UI = {
   en: {
-    editor: 'Civilization Editor', import: 'Import', undo: 'Undo', redo: 'Redo', builder: 'Builder', advisor: 'Advisor',
+    editor: 'Civilization Editor', import: 'Import', undo: 'Undo', redo: 'Redo', builder: 'Builder', advisor: 'Advisor', library: 'Library',
     autosaved: 'Autosaved', saving: 'Saving…', search: 'Search bonuses…', categories: 'Categories', exactStacking: 'Exact stacking',
     stackingHelp: 'Every selection in a category raises the next selection by that category’s surcharge.', categorySurcharge: 'Category surcharge',
     priorSelection: 'per prior selection', bonus: 'Bonus', base: 'Base', copies: 'Copies', nextCopy: 'Next copy', civDetails: 'Civilization details',
@@ -511,7 +511,7 @@ function Header({ game, setGame, mode, setMode, undo, redo, clearCurrent, canCle
       </div>
     </header>
     <div className="modebar">
-      <div><button className={mode === 'builder' ? 'active' : ''} onClick={() => setMode('builder')}>{text.builder}</button><button className={mode === 'advisor' ? 'active' : ''} onClick={() => setMode('advisor')}>{text.advisor}</button></div>
+      <div><button className={mode === 'builder' ? 'active' : ''} onClick={() => setMode('builder')}>{text.builder}</button><button className={mode === 'advisor' ? 'active' : ''} onClick={() => setMode('advisor')}>{text.advisor}</button><button className={mode === 'library' ? 'active' : ''} onClick={() => setMode('library')}>{lang === 'fr' ? 'Biblioth\u00e8que' : 'Library'}</button></div>
       <span><CheckCircle2 size={14}/> {autosaved ? text.autosaved : text.saving}</span>
     </div>
   </>;
@@ -547,6 +547,97 @@ function MiniAnalysis({ data, selected, game, lang }) {
     })).slice(0, 6)}</section>
     <section className="analysis-section"><h3><ShieldCheck size={16}/> {lang === 'fr' ? 'Validation intelligente' : 'Smart validation'}</h3>{validation.map((item, index) => <div className={`validation-row ${item.tone}`} key={`${item.text}-${index}`}>{item.tone === 'ok' ? <CheckCircle2 size={14}/> : <AlertTriangle size={14}/>}<span>{item.text}</span></div>)}</section>
   </div>;
+}
+
+function libraryProfile(data, selected) {
+  const buckets = { economy: 0, defense: 0, offense: 0, naval: 0 };
+  for (const [key, bonuses] of Object.entries(selected)) {
+    const cost = categoryCost(data.categories[key], bonuses);
+    if (key.includes('Economy') || key.includes('Citizens')) buckets.economy += cost;
+    else if (key.includes('Buildings') || key.includes('Religion - Prophets')) buckets.defense += cost;
+    else if (key.includes('Ships') || key.includes('Aircraft') || key.includes('Space')) buckets.naval += cost;
+    else buckets.offense += cost;
+  }
+  const [type] = Object.entries(buckets).sort((a, b) => b[1] - a[1])[0];
+  const top = Math.max(...Object.values(buckets));
+  const second = Object.values(buckets).sort((a, b) => b - a)[1];
+  return { type, strategy: top && top - second < 12 ? 'balanced' : type };
+}
+
+function LibraryView({ data, game, lang, items, setItems, openItem }) {
+  const filesInput = useRef(null);
+  const folderInput = useRef(null);
+  const [query, setQuery] = useState('');
+  const [filter, setFilter] = useState('all');
+  const [activeId, setActiveId] = useState('');
+  const [compareIds, setCompareIds] = useState([]);
+  const [notice, setNotice] = useState('');
+  const bi = (en, fr) => lang === 'fr' ? fr : en;
+  const signatures = useMemo(() => items.reduce((map, item) => {
+    if (item.signature) (map[item.signature] ||= []).push(item.id);
+    return map;
+  }, {}), [items]);
+  const duplicateIds = useMemo(() => new Set(Object.values(signatures).filter(ids => ids.length > 1).flat()), [signatures]);
+  const enriched = useMemo(() => items.map(item => ({ ...item, duplicate: duplicateIds.has(item.id) })), [items, duplicateIds]);
+  const visible = useMemo(() => enriched.filter(item => {
+    const text = `${item.name} ${item.fileName} ${item.summary?.dominant || ''}`.toLowerCase();
+    if (query && !text.includes(query.toLowerCase())) return false;
+    if (filter === 'duplicates') return item.duplicate;
+    if (filter === 'invalid') return !item.valid;
+    if (filter !== 'all') return item.profile?.type === filter;
+    return true;
+  }), [enriched, filter, query]);
+  const active = enriched.find(item => item.id === activeId) || visible[0];
+  const compare = compareIds.map(id => enriched.find(item => item.id === id)).filter(Boolean);
+
+  const importFiles = async event => {
+    const files = [...(event.target.files || [])].filter(file => /\.civ$/i.test(file.name));
+    if (!files.length) { setNotice(bi('No .civ files were found.', 'Aucun fichier .civ trouvÃ©.')); return; }
+    const parsed = await Promise.all(files.map(async file => {
+      const id = `${file.webkitRelativePath || file.name}:${file.size}:${file.lastModified}`;
+      try {
+        const result = parseCiv(await file.arrayBuffer(), data);
+        const summary = selectionSummary(data, result.selected);
+        const signature = allSelected(result.selected).map(bonus => bonus.hexcode.toUpperCase()).sort().join('-');
+        return { id, fileName: file.name, path: file.webkitRelativePath || file.name, size: file.size, modified: file.lastModified, name: result.name || file.name.replace(/\.civ$/i, ''), selected: result.selected, unknown: result.unknown, summary, signature, profile: libraryProfile(data, result.selected), valid: !result.unknown.length && summary.total <= CAP };
+      } catch (error) {
+        return { id, fileName: file.name, path: file.webkitRelativePath || file.name, size: file.size, modified: file.lastModified, name: file.name.replace(/\.civ$/i, ''), valid: false, error: error.message };
+      }
+    }));
+    setItems(current => {
+      const next = new Map(current.map(item => [item.id, item]));
+      parsed.forEach(item => next.set(item.id, item));
+      return [...next.values()];
+    });
+    setActiveId(parsed[0]?.id || '');
+    setNotice(bi(`${parsed.length} civilization file(s) added.`, `${parsed.length} fichier(s) de civilisation ajoutÃ©(s).`));
+    event.target.value = '';
+  };
+  const toggleCompare = id => setCompareIds(current => current.includes(id) ? current.filter(value => value !== id) : current.length < 2 ? [...current, id] : [current[1], id]);
+  const validItems = enriched.filter(item => item.valid);
+  const avg = validItems.length ? (sum(validItems.map(item => item.summary.total)) / validItems.length).toFixed(1) : '0';
+  const filters = [['all', bi('All', 'Toutes')], ['economy', bi('Economy', 'Ã‰conomie')], ['defense', bi('Defense', 'DÃ©fense')], ['offense', bi('Offense', 'Attaque')], ['naval', bi('Naval / Air', 'Naval / Air')], ['duplicates', bi('Duplicates', 'Doublons')], ['invalid', bi('Invalid', 'Invalides')]];
+  const strategyLabel = value => ({ balanced: bi('Balanced', 'Ã‰quilibrÃ©e'), economy: bi('Economy', 'Ã‰conomie'), defense: bi('Turtle', 'DÃ©fensive'), offense: bi('Aggressive', 'Agressive'), naval: bi('Naval / Air', 'Naval / Air') }[value] || '--');
+
+  return <section className="library-view">
+    <input ref={filesInput} type="file" accept=".civ" multiple hidden onChange={importFiles}/>
+    <input ref={folderInput} type="file" accept=".civ" multiple webkitdirectory="" directory="" hidden onChange={importFiles}/>
+    <div className="library-toolbar">
+      <button onClick={() => filesInput.current.click()}><Files size={23}/><span><strong>{bi('Choose civilization files', 'Choisir des fichiers')}</strong><small>{bi('Import multiple .civ files', 'Importer plusieurs fichiers .civ')}</small></span></button>
+      <button onClick={() => folderInput.current.click()}><FolderOpen size={23}/><span><strong>{bi('Choose folder', 'Choisir un dossier')}</strong><small>{bi('Scan a civilization folder', 'Analyser un dossier de civilisations')}</small></span></button>
+      <div className="local-note"><ShieldCheck size={27}/><span><strong>{bi('Your files stay on this device.', 'Vos fichiers restent sur cet appareil.')}</strong><small>{bi('Nothing is uploaded or sent anywhere.', 'Rien nâ€™est tÃ©lÃ©versÃ© ni envoyÃ©.')}</small></span></div>
+      {!!items.length && <button className="library-clear" onClick={() => { setItems([]); setCompareIds([]); setActiveId(''); }}><Trash2 size={16}/>{bi('Clear library', 'Vider la bibliothÃ¨que')}</button>}
+    </div>
+    <div className="library-filters"><label className="search"><Search size={17}/><input value={query} onChange={event => setQuery(event.target.value)} placeholder={bi('Search civilizations...', 'Rechercher des civilisations...')}/></label><div>{filters.map(([id, label]) => <button key={id} className={filter === id ? 'active' : ''} onClick={() => setFilter(id)}>{label}</button>)}</div></div>
+    <div className="library-stats"><div><Files/><span>{bi('Total files', 'Total')}<b>{items.length}</b></span></div><div><CheckCircle2/><span>{bi('Valid files', 'Fichiers valides')}<b>{validItems.length}</b></span></div><div><Copy/><span>{bi('Duplicates', 'Doublons')}<b>{duplicateIds.size}</b></span></div><div><AlertTriangle/><span>{bi('Invalid files', 'Fichiers invalides')}<b>{items.length - validItems.length}</b></span></div><div><Gauge/><span>{bi('Average points', 'Moyenne')}<b>{avg} / 100</b></span></div></div>
+    {!items.length ? <div className="library-empty"><FolderOpen size={48}/><h2>{bi('Build your civilization library', 'CrÃ©ez votre bibliothÃ¨que de civilisations')}</h2><p>{bi('Choose your CIV folder or select several files. Empire Forge will calculate their real point costs, identify strategies, and reveal exact duplicates.', 'Choisissez votre dossier CIV ou plusieurs fichiers. Empire Forge calculera les coÃ»ts rÃ©els, identifiera les stratÃ©gies et trouvera les doublons exacts.')}</p><button onClick={() => folderInput.current.click()}>{bi('Choose CIV folder', 'Choisir le dossier CIV')}</button></div> : <div className="library-workspace">
+      <div className="library-main"><div className="library-table-head"><span></span><span>{bi('Civilization', 'Civilisation')}</span><span>{bi('Points', 'Points')}</span><span>{bi('Bonuses', 'Bonus')}</span><span>{bi('Strategy', 'StratÃ©gie')}</span><span>{bi('Dominant', 'Dominante')}</span><span>{bi('Status', 'Ã‰tat')}</span><span></span></div>
+      <div className="library-rows">{visible.map(item => <div className={`library-row ${active?.id === item.id ? 'active' : ''}`} key={item.id} onClick={() => setActiveId(item.id)}><label onClick={event => event.stopPropagation()}><input type="checkbox" checked={compareIds.includes(item.id)} disabled={!item.valid} onChange={() => toggleCompare(item.id)}/></label><span><strong>{item.name}</strong><small>{item.path}</small></span><b>{item.summary?.total ?? '--'}<small>/100</small></b><span>{item.summary?.entries ?? 0}</span><span>{strategyLabel(item.profile?.strategy)}</span><span>{item.summary ? categoryName(item.summary.dominant, lang) : '--'}</span><span className={item.duplicate ? 'duplicate' : item.valid ? 'valid' : 'invalid'}>{item.duplicate ? <><Copy size={13}/>{bi('Duplicate', 'Doublon')}</> : item.valid ? <><CheckCircle2 size={13}/>{bi('Valid', 'Valide')}</> : <><AlertTriangle size={13}/>{bi('Invalid', 'Invalide')}</>}</span><button disabled={!item.valid} onClick={event => { event.stopPropagation(); openItem(item); }}>{bi('Open', 'Ouvrir')}</button></div>)}</div>{!visible.length && <div className="library-no-results">{bi('No civilizations match this view.', 'Aucune civilisation ne correspond Ã  cette vue.')}</div>}</div>
+      <aside className="library-inspector">{active && <><h2>{active.name}</h2><small>{active.path}</small>{active.duplicate && <div className="duplicate-warning"><Copy size={18}/><span><strong>{bi('Exact duplicate found', 'Doublon exact trouvÃ©')}</strong>{bi('This has the same bonus codes as another file.', 'Ce fichier possÃ¨de les mÃªmes codes bonus quâ€™un autre.')}</span></div>}{active.valid ? <><BudgetRing total={active.summary.total} entries={active.summary.entries} lang={lang}/><div className="library-detail"><h3>{bi('Category breakdown', 'RÃ©partition par catÃ©gorie')}</h3>{Object.entries(active.selected).sort((a,b) => categoryCost(data.categories[b[0]], b[1]) - categoryCost(data.categories[a[0]], a[1])).map(([key, bonuses]) => <div key={key}><span>{categoryName(key, lang)}</span><i><em style={{width: `${categoryCost(data.categories[key], bonuses)}%`}}/></i><b>{categoryCost(data.categories[key], bonuses)}</b></div>)}</div><dl><div><dt>{bi('Strategy', 'StratÃ©gie')}</dt><dd>{strategyLabel(active.profile.strategy)}</dd></div><div><dt>{bi('Unknown codes', 'Codes inconnus')}</dt><dd>{active.unknown.length}</dd></div><div><dt>{bi('File size', 'Taille')}</dt><dd>{active.size} B</dd></div></dl><button className="open-builder" onClick={() => openItem(active)}>{bi('Open in Builder', 'Ouvrir dans CrÃ©ation')}</button></> : <div className="invalid-detail"><AlertTriangle size={24}/><strong>{bi('This file needs attention', 'Ce fichier doit Ãªtre vÃ©rifiÃ©')}</strong><p>{active.error || bi(`${active.unknown?.length || 0} unknown bonus code(s) or a point total above 100.`, `${active.unknown?.length || 0} code(s) bonus inconnu(s) ou un total supÃ©rieur Ã  100.`)}</p></div>}</>}</aside>
+    </div>}
+    {notice && <div className="library-notice">{notice}</div>}
+    {compare.length > 0 && <div className="library-compare"><div><h3>{bi(`Compare (${compare.length}/2)`, `Comparer (${compare.length}/2)`)}</h3><button onClick={() => setCompareIds([])}>{bi('Clear', 'Effacer')}</button></div>{compare.map(item => <section key={item.id}><strong>{item.name}</strong><span>{item.summary.total} / 100</span><small>{item.summary.entries} {bi('bonuses', 'bonus')} - {strategyLabel(item.profile.strategy)}</small></section>)}</div>}
+  </section>;
 }
 
 function ControlChoices({ title, options, value, onChange }) {
@@ -611,6 +702,7 @@ function App() {
   const [undoStack, setUndoStack] = useState([]);
   const [redoStack, setRedoStack] = useState([]);
   const [autosaved, setAutosaved] = useState(true);
+  const [libraryItems, setLibraryItems] = useState([]);
   const fileInput = useRef(null);
 
   useEffect(() => {
@@ -739,6 +831,14 @@ function App() {
     event.target.value = '';
   };
 
+  const openLibraryItem = item => {
+    if (!item?.valid) return;
+    setName(item.name || item.fileName.replace(/\.civ$/i, ''));
+    commitSelected(item.selected);
+    setMode('builder');
+    setMessage(lang === 'fr' ? `Â« ${item.name} Â» est ouvert dans CrÃ©ation.` : `“${item.name}” is open in Builder.`);
+  };
+
   const saveDraft = () => {
     const key = (draftName || name || 'Untitled Draft').trim();
     setDrafts(previous => ({ ...previous, [key]: { game, name, selected, savedAt: new Date().toISOString() } }));
@@ -828,9 +928,11 @@ function App() {
     </aside>
   </div> : <StrategyTools {...{ data, game, lang, tool: advisorTool, setTool: setAdvisorTool, showNav: false, generator, setGenerator, generatedPreview, compareIds, setCompareIds, optimizedSelected, selected, wallSettings, setWallSettings, wallSelected, applyStrategy, commitSelected }}/>}</section>;
 
-  return <main className={`app-shell ${mode === 'advisor' ? 'advisor-shell' : ''}`}>
+  const library = <LibraryView {...{ data, game, lang, items: libraryItems, setItems: setLibraryItems, openItem: openLibraryItem }}/>;
+
+  return <main className={`app-shell ${mode === 'advisor' ? 'advisor-shell' : ''} ${mode === 'library' ? 'library-shell' : ''}`}>
     <Header {...{ game, setGame, mode, setMode, undo, redo, clearCurrent, canClear: !!allSelected(selected).length, canUndo: !!undoStack.length, canRedo: !!redoStack.length, fileInput, importFile, autosaved, lang, setLang }}/>
-    {mode === 'builder' ? builder : advisor}
+    {mode === 'builder' ? builder : mode === 'advisor' ? advisor : library}
   </main>;
 }
 
